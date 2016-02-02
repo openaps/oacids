@@ -1,0 +1,34 @@
+Source: openaps-appliance
+Section: embedded
+Priority: optional
+Maintainer: Ben West <bewest@gmail.com>
+Standards-Version: 3.9.6
+Homepage: http://github.com/openaps
+Build-Depends:
+ debhelper (>= 9),
+ dh-systemd (>= 1.5)
+# libboost-dev (>> 1.58),
+
+
+Package: openaps-appliance
+Architecture: any
+Pre-Depends: adduser
+Depends:
+  git,
+  python,
+  python-dev,
+  python-software-properties,
+  python-numpy,
+  python-pip,
+  nodejs-legacy,
+  npm,
+  watchdog,
+  ntpdate,
+  mongodb,
+  nginx,
+  mosquitto,
+  ${misc:Depends}
+#Replaces:
+Description: openaps tools all installed as an appliance
+ .
+

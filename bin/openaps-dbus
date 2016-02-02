@@ -1,0 +1,116 @@
+#!/usr/bin/python
+
+#!/usr/bin/python
+import gobject
+import dbus.service
+import time
+import sys
+import argparse
+
+# http://cyberelk.net/tim/2011/08/16/d-bus-and-python-asynchronous-method-implementation/
+# https://coelhorjc.wordpress.com/2014/12/09/howto-write-dbus-service-for-linux-in-python/
+# http://stackoverflow.com/questions/34851085/how-to-stop-a-dbus-gobject-loop/34860020#34860020
+
+BUS='com.example.Timer'
+IFACE='com.example.Timer'
+PATH='/com/example/Timer'
+START_TIME=time.time ()
+
+class Timer(dbus.service.Object):
+    def __init__ (self, loop, bus=None, path=PATH):
+        self.loop = loop
+        self.bus = bus or dbus.SessionBus( )
+        request = self.bus.request_name(BUS, dbus.bus.NAME_FLAG_DO_NOT_QUEUE)
+        self.running = False
+        if request != dbus.bus.REQUEST_NAME_REPLY_EXISTS:
+          bus_name = dbus.service.BusName (BUS, bus=self.bus)
+          print "bus_name", bus_name
+          dbus.service.Object.__init__ (self, bus_name, PATH)
+        else:
+          self.running = True
+          print "running already"
+          # raise Exception("Already exists")
+
+    @dbus.service.method(dbus_interface=IFACE,
+                         in_signature='i',
+                         out_signature='i',
+                         async_callbacks=('reply_handler',
+                                          'error_handler'))
+    def Delay (self, seconds, reply_handler, error_handler):
+        print "Sleeping for %ds" % seconds
+        gobject.timeout_add_seconds (seconds,
+                                     lambda: reply_handler (seconds))
+
+    @dbus.service.method(dbus_interface=IFACE,
+                         in_signature='', out_signature='')
+    def Howdy(self):
+      print "Howdy!"
+
+    @dbus.service.method(dbus_interface=IFACE,
+                         in_signature='', out_signature='s')
+    def Start (self):
+      print "Howdy!"
+      return "OK"
+
+    @dbus.service.method(dbus_interface=IFACE,
+                         in_signature='', out_signature='')
+    def Exit(self):
+      print "Exiting!"
+      self.loop.quit()
+
+    @classmethod
+    def App (Klass, args=None):
+      from dbus.mainloop.glib import DBusGMainLoop
+      DBusGMainLoop (set_as_default=True)
+      loop = gobject.MainLoop ()
+      dbus.mainloop.glib.threads_init( )
+      # Start the heartbeat
+      handle = gobject.timeout_add_seconds (1, heartbeat)
+      print "STarting", sys.argv
+      timer = Timer (loop)
+      if timer.running:
+        print "Already running", 'running howdy'
+        proxy = timer.bus.get_object(BUS, PATH)
+        app = dbus.Interface (proxy, IFACE)
+        print app
+        app.Howdy( )
+        return app
+      else:
+        timer.running = True
+        loop.run ()
+        timer.running = False
+        return timer
+
+def heartbeat():
+    print "Still alive at", time.time () - START_TIME
+    return True
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser( )
+  # parser.add_argument( )
+  args = parser.parse_args( )
+  app = Timer.App(args)
+  # app.dispatch(args)
+  """
+  from dbus.mainloop.glib import DBusGMainLoop
+  DBusGMainLoop (set_as_default=True)
+  loop = gobject.MainLoop ()
+  dbus.mainloop.glib.threads_init( )
+  # Start the heartbeat
+  handle = gobject.timeout_add_seconds (1, heartbeat)
+  print "STarting", sys.argv
+  timer = Timer (loop)
+  request = timer.bus.request_name(BUS, dbus.bus.NAME_FLAG_DO_NOT_QUEUE)
+  if request != dbus.bus.REQUEST_NAME_REPLY_EXISTS:
+    # Start the D-Bus service
+    app = timer
+    loop.run ()
+    print loop
+  else:
+    print "Already running", 'running howdy'
+    proxy = timer.bus.get_object(BUS, PATH)
+    app = dbus.Interface (proxy, IFACE)
+    print app
+    app.Howdy( )
+  """
+

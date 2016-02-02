@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=com.example.Timer
+Exec="/home/bewest/src/openaps/openaps-appliance/bin/openaps-dbus"
