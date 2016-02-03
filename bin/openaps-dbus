@@ -1,11 +1,17 @@
 #!/usr/bin/python
 
 #!/usr/bin/python
-import gobject
+# import gobject
+from gi.repository import GObject as gobject
 import dbus.service
 import time
 import sys
 import argparse
+from dbus.gi_service import ExportedGObject
+
+from dbus import validate_interface_name
+import _dbus_bindings
+import inspect
 
 # http://cyberelk.net/tim/2011/08/16/d-bus-and-python-asynchronous-method-implementation/
 # https://coelhorjc.wordpress.com/2014/12/09/howto-write-dbus-service-for-linux-in-python/
@@ -13,10 +19,235 @@ import argparse
 
 BUS='com.example.Timer'
 IFACE='com.example.Timer'
+
+ObjectManager = 'org.freedesktop.DBus.ObjectManager'
 PATH='/com/example/Timer'
 START_TIME=time.time ()
 
-class Timer(dbus.service.Object):
+INTROSPECTABLE_IFACE='org.freedesktop.DBus.Introspectable'
+
+def describe_property(dbus_interface, type_signature=None,
+           emitsChanged=None,
+           sender_keyword=None, path_keyword=None, destination_keyword=None,
+           message_keyword=None, connection_keyword=None,
+           byte_arrays=False,
+           rel_path_keyword=None, **kwargs):
+    """Factory for decorators used to mark methods of a `dbus.service.Object`
+    to be exported on the D-Bus.
+    The decorated method will be exported over D-Bus as the method of the
+    same name on the given D-Bus interface.
+    :Parameters:
+        `dbus_interface` : str
+            Name of a D-Bus interface
+        `type_signature` : str or None
+            If not None, the signature of the method parameters in the usual
+            D-Bus notation
+    """
+    validate_interface_name(dbus_interface)
+
+    def decorator(func):
+        args = inspect.getargspec(func)[0]
+        args.pop(0)
+
+
+
+        if type_signature:
+            type_sig = tuple(Signature(type_signature))
+
+            if len(type_sig) > len(args):
+                raise ValueError('input signature is longer than the number of arguments taken')
+            elif len(type_sig) < len(args):
+                raise ValueError('input signature is shorter than the number of arguments taken')
+
+        func._dbus_is_property = True
+        func._dbus_interface = dbus_interface
+        func._dbus_type_signature = type_signature
+        func._dbus_args = args
+        if is_py2:
+            func._dbus_get_args_options['utf8_strings'] = kwargs.get(
+                'utf8_strings', False)
+        elif 'utf8_strings' in kwargs:
+            raise TypeError("unexpected keyword argument 'utf8_strings'")
+        return func
+
+    return decorator
+
+class Scheduled (dbus.service.Object):
+  def __init__ (self, bus, path):
+    self.bus = bus
+    self.path = path
+# class WithProperties (dbus.service.Object):
+class WithProperties (ExportedGObject):
+  
+    def _reflect_on_property(cls, func):
+        args = func._dbus_args
+
+        if func._dbus_type_signature:
+            # convert signature into a tuple so length refers to number of
+            # types, not number of characters. the length is checked by
+            # the decorator to make sure it matches the length of args.
+            type_sig = tuple(Signature(func._dbus_type_signature))
+        else:
+            # magic iterator which returns as many v's as we need
+            type_sig = _VariantSignature()
+
+        access = None
+        if func._dbus_access:
+            access = func._dbus_access
+            out_sig = Signature(func._dbus_out_signature)
+        else:
+            # its tempting to default to Signature('v'), but
+            # for methods that return nothing, providing incorrect
+            # introspection data is worse than providing none at all
+            out_sig = []
+
+        reflection_data = '    <property name="%s" type="%s" access="%s">\n' % (func.__name__, type_sig, access)
+        for annotation in getattr(func, '_dbus_annotations', [ ]):
+            reflection_data += '      <annotation name="%s" value="true" />\n' % pair
+            # reflection_data += '      <arg direction="in"  type="%s" name="%s" />\n' % pair
+
+        reflection_data += '    </property>\n'
+
+        return reflection_data
+    def _reflect_on_gproperty(cls, prop):
+        gname = prop.name.replace('-', '_')
+        print "gname", gname
+        type_sig = cls.PROP_SIGS.get(gname, 'v')
+        access_map = {
+          gobject.PARAM_READWRITE: 'readwrite'
+        , gobject.PARAM_READABLE: 'read'
+        , gobject.PARAM_WRITABLE: 'write'
+        }
+        access = 'read'
+        if getattr(cls.__class__, gname, None):
+          access = access_map.get(getattr(cls.__class__, gname).flags, 'read')
+        reflection_data = '    <property name="%s" type="%s" access="%s">\n' % (gname, type_sig, access)
+        for annotation in getattr(prop, '_dbus_annotations', [ ]):
+            reflection_data += '      <annotation name="%s" value="true" />\n' % pair
+            # reflection_data += '      <arg direction="in"  type="%s" name="%s" />\n' % pair
+
+        reflection_data += '    </property>\n'
+
+        return reflection_data
+    @dbus.service.method(INTROSPECTABLE_IFACE, in_signature='', out_signature='s',
+            path_keyword='object_path', connection_keyword='connection')
+    def Introspect(self, object_path, connection):
+        """Return a string of XML encoding this object's supported interfaces,
+        methods and signals.
+        """
+        reflection_data = _dbus_bindings.DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE
+        reflection_data += '<node name="%s">\n' % object_path
+
+        interfaces = self._dbus_class_table[self.__class__.__module__ + '.' + self.__class__.__name__]
+        for (name, funcs) in interfaces.items():
+            reflection_data += '  <interface name="%s">\n' % (name)
+
+            if name == self.OWN_IFACE:
+              for prop in self.props:
+                reflection_data += self._reflect_on_gproperty(prop)
+
+            for func in funcs.values():
+                if getattr(func, '_dbus_is_method', False):
+                    reflection_data += self.__class__._reflect_on_method(func)
+                elif getattr(func, '_dbus_is_signal', False):
+                    reflection_data += self.__class__._reflect_on_signal(func)
+                elif getattr(func, '_dbus_is_property', False):
+                    reflection_data += self.__class__._reflect_on_property(func)
+
+
+            reflection_data += '  </interface>\n'
+
+        for name in connection.list_exported_child_objects(object_path):
+            reflection_data += '  <node name="%s"/>\n' % name
+
+        reflection_data += '</node>\n'
+
+        return reflection_data
+
+# class Timer(dbus.service.Object):
+# class Timer(ExportedGObject):
+class Manager (WithProperties):
+    OWN_IFACE = IFACE
+    # ObjectManager
+    schedules = [ ]
+    def __init__ (self, path, bus=None):
+      # self.__dbus_object_path__ = path
+      self.bus = bus or dbus.SessionBus( )
+      WithProperties.__init__(self, self.bus.get_connection( ), path)
+
+    @dbus.service.method(dbus_interface=ObjectManager,
+                         in_signature='', out_signature='a{oa{sa{sv}}}')
+    def GetManagedObjects(self):
+      return [ ]
+    @dbus.service.signal(dbus_interface=ObjectManager,
+                         signature='oa{sa{sv}}')
+    def InterfacesAdded (self, path, iface_spec):
+      pass
+    @dbus.service.signal(dbus_interface=ObjectManager,
+                         signature='oas')
+    def InterfacesRemoved (self, path, iface_spec):
+      pass
+
+class GPropSync (WithProperties):
+    PROP_SIGS = { }
+    def __init__ (self, bus=None, path=PATH):
+        self.bus = bus or dbus.SessionBus( )
+        ExportedGObject.__init__(self, self.bus.get_connection( ), path)
+        for prop in self.props:
+          self.connect("notify::%s" % prop.name, self.on_prop_change)
+    def on_prop_change (self, obj, gparam):
+      changed = {gparam.name: getattr(self, gparam.name)}
+      # print changed
+      self.PropertiesChanged(self.IFACE, changed, {})
+
+    @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE, in_signature='ss', out_signature='v')
+    def Get(self, interface_name, property_name):
+        return self.GetAll(interface_name)[property_name]
+
+    @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
+                         in_signature='s', out_signature='a{sv}')
+    def GetAll(self, interface_name):
+        if interface_name == self.IFACE:
+            props = dict([(prop.name, getattr(self, prop.name)) for prop in self.props])
+            return props
+        else:
+            raise dbus.exceptions.DBusException(
+                'com.example.UnknownInterface',
+                'The Foo object does not implement the %s interface'
+                    % interface_name)
+
+    @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
+                         in_signature='ssv')
+    def Set(self, interface_name, property_name, new_value):
+        # validate the property name and value, update internal state
+        if interface_name == self.OWN_IFACE:
+          self.set_property(property_name, new_value)
+        # self.PropertiesChanged(interface_name,
+            # { property_name: new_value }, [])
+
+    @dbus.service.signal(dbus_interface=dbus.PROPERTIES_IFACE,
+                         signature='sa{sv}as')
+    def PropertiesChanged(self, interface_name, changed_properties,
+                          invalidated_properties):
+        print "dbus signal PropertiesChanged"
+        pass
+
+
+class Timer (Manager, WithProperties):
+    OWN_IFACE = IFACE
+    PROP_SIGS = {
+      'fuel': 'i'
+    , 'blah': 's'
+    , 'name': 's'
+    , 'mode': 's'
+    , 'ini_home': 's'
+    }
+    blah = gobject.property(type=str)
+    ini_home = gobject.property(type=str, default=".")
+    mode = gobject.property(type=str, flags=gobject.PARAM_READABLE, default='foo')
+
+    # describe_property(dbus_interface=IFACE, type_signature='s') ()
+    name = gobject.property(type=str)
     def __init__ (self, loop, bus=None, path=PATH):
         self.loop = loop
         self.bus = bus or dbus.SessionBus( )
@@ -25,7 +256,19 @@ class Timer(dbus.service.Object):
         if request != dbus.bus.REQUEST_NAME_REPLY_EXISTS:
           bus_name = dbus.service.BusName (BUS, bus=self.bus)
           print "bus_name", bus_name
-          dbus.service.Object.__init__ (self, bus_name, PATH)
+          ExportedGObject.__init__(self, self.bus.get_connection( ), PATH, bus_name=bus_name, name= 'foo'  )
+          print "props", self.props
+          for x in self.props:
+            print "x", x, x.name
+          for prop in self.props:
+            self.connect("notify::%s" % prop.name, self.on_prop_change)
+
+          # self.schedules = Manager(path + '/Manager1', bus)
+
+
+
+          # dbus.service.Object.__init__ (self, bus_name, PATH)
+          self.name = 'foobar'
         else:
           self.running = True
           print "running already"
@@ -81,15 +324,74 @@ class Timer(dbus.service.Object):
         timer.running = False
         return timer
 
+    @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE, in_signature='ss', out_signature='v')
+    def Get(self, interface_name, property_name):
+        return self.GetAll(interface_name)[property_name]
+
+    @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
+                         in_signature='s', out_signature='a{sv}')
+    def GetAll(self, interface_name):
+        if interface_name == IFACE:
+            props = dict([(prop.name.replace('-', '_'), getattr(self, prop.name.replace('-', '_'))) for prop in self.props])
+            return props
+        else:
+            raise dbus.exceptions.DBusException(
+                'com.example.UnknownInterface',
+                'The Foo object does not implement the %s interface'
+                    % interface_name)
+
+    @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
+                         in_signature='ssv')
+    def Set(self, interface_name, property_name, new_value):
+        # validate the property name and value, update internal state
+        if interface_name == self.OWN_IFACE:
+          self.set_property(property_name, new_value)
+        # self.PropertiesChanged(interface_name,
+            # { property_name: new_value }, [])
+
+    @dbus.service.signal(dbus_interface=dbus.PROPERTIES_IFACE,
+                         signature='sa{sv}as')
+    def PropertiesChanged(self, interface_name, changed_properties,
+                          invalidated_properties):
+        print "dbus signal PropertiesChanged"
+        pass
+    def on_prop_change (self, obj, gparam):
+      print "dEBUG"
+      print gparam
+      changed = {gparam.name.replace('-', '_'): getattr(self, gparam.name.replace('-', '_'))}
+      print changed
+      self.PropertiesChanged(IFACE, changed, {})
+
+    @dbus.service.method(dbus_interface=IFACE, in_signature='a{sv}', out_signature='v')
+    def operate(self, kwds):
+      print "OPERATE", kwds
+      if 'ini_home' in kwds:
+        self.ini_home = kwds['ini_home']
+      if 'name' in kwds:
+        self.name = kwds['name']
+      return 0
+
 def heartbeat():
     print "Still alive at", time.time () - START_TIME
     return True
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser( )
-  # parser.add_argument( )
+  parser.add_argument('--quit', action='store_true', default=False)
+  parser.add_argument('--name')
+  parser.add_argument('--ini_home')
   args = parser.parse_args( )
   app = Timer.App(args)
+  op = dict( )
+  if args.quit:
+    app.Exit( )
+  if args.ini_home:
+    op.update(ini_home=args.ini_home)
+  if args.name:
+    print "setting name", args.name
+    op.update(name=args.name)
+  app.operate(op)
+    # app.name = args.name
   # app.dispatch(args)
   """
   from dbus.mainloop.glib import DBusGMainLoop
