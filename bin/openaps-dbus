@@ -1,12 +1,12 @@
 #!/usr/bin/python
+# PYTHON_ARGCOMPLETE_OK
 
-#!/usr/bin/python
 # import gobject
 from gi.repository import GObject as gobject
 import dbus.service
 import time
 import sys
-import argparse
+import argparse, argcomplete
 from dbus.gi_service import ExportedGObject
 
 from dbus import validate_interface_name
@@ -26,56 +26,7 @@ START_TIME=time.time ()
 
 INTROSPECTABLE_IFACE='org.freedesktop.DBus.Introspectable'
 
-def describe_property(dbus_interface, type_signature=None,
-           emitsChanged=None,
-           sender_keyword=None, path_keyword=None, destination_keyword=None,
-           message_keyword=None, connection_keyword=None,
-           byte_arrays=False,
-           rel_path_keyword=None, **kwargs):
-    """Factory for decorators used to mark methods of a `dbus.service.Object`
-    to be exported on the D-Bus.
-    The decorated method will be exported over D-Bus as the method of the
-    same name on the given D-Bus interface.
-    :Parameters:
-        `dbus_interface` : str
-            Name of a D-Bus interface
-        `type_signature` : str or None
-            If not None, the signature of the method parameters in the usual
-            D-Bus notation
-    """
-    validate_interface_name(dbus_interface)
 
-    def decorator(func):
-        args = inspect.getargspec(func)[0]
-        args.pop(0)
-
-
-
-        if type_signature:
-            type_sig = tuple(Signature(type_signature))
-
-            if len(type_sig) > len(args):
-                raise ValueError('input signature is longer than the number of arguments taken')
-            elif len(type_sig) < len(args):
-                raise ValueError('input signature is shorter than the number of arguments taken')
-
-        func._dbus_is_property = True
-        func._dbus_interface = dbus_interface
-        func._dbus_type_signature = type_signature
-        func._dbus_args = args
-        if is_py2:
-            func._dbus_get_args_options['utf8_strings'] = kwargs.get(
-                'utf8_strings', False)
-        elif 'utf8_strings' in kwargs:
-            raise TypeError("unexpected keyword argument 'utf8_strings'")
-        return func
-
-    return decorator
-
-class Scheduled (dbus.service.Object):
-  def __init__ (self, bus, path):
-    self.bus = bus
-    self.path = path
 # class WithProperties (dbus.service.Object):
 class WithProperties (ExportedGObject):
   
@@ -164,41 +115,19 @@ class WithProperties (ExportedGObject):
 
         return reflection_data
 
-# class Timer(dbus.service.Object):
-# class Timer(ExportedGObject):
-class Manager (WithProperties):
-    OWN_IFACE = IFACE
-    # ObjectManager
-    schedules = [ ]
-    def __init__ (self, path, bus=None):
-      # self.__dbus_object_path__ = path
-      self.bus = bus or dbus.SessionBus( )
-      WithProperties.__init__(self, self.bus.get_connection( ), path)
-
-    @dbus.service.method(dbus_interface=ObjectManager,
-                         in_signature='', out_signature='a{oa{sa{sv}}}')
-    def GetManagedObjects(self):
-      return [ ]
-    @dbus.service.signal(dbus_interface=ObjectManager,
-                         signature='oa{sa{sv}}')
-    def InterfacesAdded (self, path, iface_spec):
-      pass
-    @dbus.service.signal(dbus_interface=ObjectManager,
-                         signature='oas')
-    def InterfacesRemoved (self, path, iface_spec):
-      pass
-
 class GPropSync (WithProperties):
     PROP_SIGS = { }
     def __init__ (self, bus=None, path=PATH):
         self.bus = bus or dbus.SessionBus( )
         ExportedGObject.__init__(self, self.bus.get_connection( ), path)
-        for prop in self.props:
-          self.connect("notify::%s" % prop.name, self.on_prop_change)
+        self.sync_all_props( )
+    def sync_all_props (self):
+      for prop in self.props:
+        self.connect("notify::%s" % prop.name, self.on_prop_change)
     def on_prop_change (self, obj, gparam):
-      changed = {gparam.name: getattr(self, gparam.name)}
+      changed = {gparam.name.replace('-', '_'): getattr(self, gparam.name.replace('-', '_'))}
       # print changed
-      self.PropertiesChanged(self.IFACE, changed, {})
+      self.PropertiesChanged(self.OWN_IFACE, changed, {})
 
     @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE, in_signature='ss', out_signature='v')
     def Get(self, interface_name, property_name):
@@ -207,8 +136,8 @@ class GPropSync (WithProperties):
     @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
                          in_signature='s', out_signature='a{sv}')
     def GetAll(self, interface_name):
-        if interface_name == self.IFACE:
-            props = dict([(prop.name, getattr(self, prop.name)) for prop in self.props])
+        if interface_name == self.OWN_IFACE:
+            props = dict([(prop.name.replace('-', '_'), getattr(self, prop.name.replace('-', '_'))) for prop in self.props])
             return props
         else:
             raise dbus.exceptions.DBusException(
@@ -232,25 +161,104 @@ class GPropSync (WithProperties):
         print "dbus signal PropertiesChanged"
         pass
 
+# class Timer(dbus.service.Object):
+# class Timer(ExportedGObject):
+class Manager (WithProperties):
+    OWN_IFACE = IFACE
+    # ObjectManager
+    schedules = [ ]
+    def __init__ (self, path, bus=None):
+      # self.__dbus_object_path__ = path
+      self.bus = bus or dbus.SessionBus( )
+      WithProperties.__init__(self, self.bus.get_connection( ), path)
 
-class Timer (Manager, WithProperties):
+    @dbus.service.method(dbus_interface=ObjectManager,
+                         in_signature='', out_signature='a{oa{sa{sv}}}')
+    def GetManagedObjects(self):
+      return self.get_all_managed( )
+      return [ ]
+    @dbus.service.signal(dbus_interface=ObjectManager,
+                         signature='oa{sa{sv}}')
+    def InterfacesAdded (self, path, iface_spec):
+      pass
+    @dbus.service.signal(dbus_interface=ObjectManager,
+                         signature='oas')
+    def InterfacesRemoved (self, path, iface_spec):
+      pass
+
+TRIGGER_IFACE = IFACE + '.Trigger'
+class Trigger (GPropSync):
+  OWN_IFACE = TRIGGER_IFACE
+  PROP_SIGS = {
+    'name': 's'
+  }
+  name = gobject.property(type=str)
+  def __init__ (self, path, bus=None, props=None):
+    self.bus = bus or dbus.SessionBus( )
+    WithProperties.__init__(self, self.bus.get_connection( ), path)
+    if props:
+      for key in props:
+        self.set_property(key, props[key])
+    self.sync_all_props( )
+  @dbus.service.method(dbus_interface=TRIGGER_IFACE,
+                       in_signature='', out_signature='',
+                       async_callbacks=('ack', 'error'))
+  def Remove (self, ack=None, error=None):
+    ack( )
+class ScheduleManager (Manager):
+  def __init__ (self, bus, path):
+    self.bus = bus
+    self.path = path
+    Manager.__init__(self, path, bus)
+  def init_managed (self):
+    self.schedules = [ ]
+  def get_all_managed (self):
+    managed = self.schedules
+    return managed
+  @dbus.service.method(dbus_interface=IFACE,
+                       in_signature='a{sv}', out_signature='')
+                       # , async_callbacks=('ack', 'error'))
+  # def Create (self, props, ack=None, error=None):
+  def Create (self, props):
+    path = "%s/Trigger%s" % (self.path, len(self.schedules))
+    new_schedule = Trigger(path, self.bus, props)
+    print "NEW SCHEDULE", new_schedule
+    self.schedules.append(new_schedule)
+    self.InterfacesAdded(path, { TRIGGER_IFACE: props })
+
+
+
+def is_running (bus, NAME):
+    request = bus.request_name(NAME, dbus.bus.NAME_FLAG_DO_NOT_QUEUE)
+    if request != dbus.bus.REQUEST_NAME_REPLY_EXISTS:
+      return False
+    return True
+
+class Timer (ScheduleManager, WithProperties):
     OWN_IFACE = IFACE
     PROP_SIGS = {
       'fuel': 'i'
     , 'blah': 's'
     , 'name': 's'
     , 'mode': 's'
+    , 'status': 'u'
     , 'ini_home': 's'
     }
     blah = gobject.property(type=str)
     ini_home = gobject.property(type=str, default=".")
     mode = gobject.property(type=str, flags=gobject.PARAM_READABLE, default='foo')
 
+    @gobject.property(type=int, flags=gobject.PARAM_READABLE, default=0)
+    def status (self):
+
+      return 0
+
     # describe_property(dbus_interface=IFACE, type_signature='s') ()
     name = gobject.property(type=str)
     def __init__ (self, loop, bus=None, path=PATH):
         self.loop = loop
         self.bus = bus or dbus.SessionBus( )
+        self.path = path
         request = self.bus.request_name(BUS, dbus.bus.NAME_FLAG_DO_NOT_QUEUE)
         self.running = False
         if request != dbus.bus.REQUEST_NAME_REPLY_EXISTS:
@@ -299,8 +307,16 @@ class Timer (Manager, WithProperties):
                          in_signature='', out_signature='')
     def Exit(self):
       print "Exiting!"
-      self.loop.quit()
+      self.Quit( )
+      return
+      # self.loop.quit()
 
+    @dbus.service.signal(dbus_interface=dbus.PROPERTIES_IFACE,
+                         signature='')
+    def Quit (self):
+      gobject.timeout_add(2, self.loop.quit)
+      # self.loop.quit()
+      
     @classmethod
     def App (Klass, args=None):
       from dbus.mainloop.glib import DBusGMainLoop
@@ -310,19 +326,24 @@ class Timer (Manager, WithProperties):
       # Start the heartbeat
       handle = gobject.timeout_add_seconds (1, heartbeat)
       print "STarting", sys.argv
-      timer = Timer (loop)
-      if timer.running:
-        print "Already running", 'running howdy'
-        proxy = timer.bus.get_object(BUS, PATH)
+      bus = dbus.SessionBus( )
+      op = make_args_op(args)
+      if args.quit or is_running(bus, BUS):
+        print "Already running"
+        proxy = bus.get_object(BUS, PATH)
         app = dbus.Interface (proxy, IFACE)
         print app
-        app.Howdy( )
+        app.operate(op)
+        # app.Howdy( )
         return app
       else:
+        timer = Timer (loop, bus)
         timer.running = True
+        timer.operate(op)
         loop.run ()
         timer.running = False
         return timer
+        
 
     @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE, in_signature='ss', out_signature='v')
     def Get(self, interface_name, property_name):
@@ -369,28 +390,41 @@ class Timer (Manager, WithProperties):
         self.ini_home = kwds['ini_home']
       if 'name' in kwds:
         self.name = kwds['name']
+      if 'create' in kwds:
+        self.Create(kwds['create'])
       return 0
 
 def heartbeat():
     print "Still alive at", time.time () - START_TIME
     return True
 
-if __name__ == '__main__':
-  parser = argparse.ArgumentParser( )
-  parser.add_argument('--quit', action='store_true', default=False)
-  parser.add_argument('--name')
-  parser.add_argument('--ini_home')
-  args = parser.parse_args( )
-  app = Timer.App(args)
+def main (args):
+  pass
+
+def make_args_op (args):
   op = dict( )
-  if args.quit:
-    app.Exit( )
   if args.ini_home:
     op.update(ini_home=args.ini_home)
   if args.name:
     print "setting name", args.name
     op.update(name=args.name)
-  app.operate(op)
+  if args.create:
+    op.update(create=dict(name=args.create))
+  return op
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser( )
+  parser.add_argument('--quit', action='store_true', default=False)
+  parser.add_argument('--name')
+  parser.add_argument('--ini_home')
+  parser.add_argument('--create')
+  argcomplete.autocomplete(parser)
+  args = parser.parse_args( )
+  main(args)
+  app = Timer.App(args)
+
+  if args.quit:
+    app.Exit( )
     # app.name = args.name
   # app.dispatch(args)
   """
