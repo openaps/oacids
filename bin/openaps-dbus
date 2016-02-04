@@ -111,6 +111,7 @@ class Timer (ScheduleManager, GPropSync):
       print "NEW HOME", value, directory, os.path.isdir(directory)
       if not os.path.exists(directory) or not os.path.isdir(directory):
         raise Exception("Not a directory: %s" % directory)
+      os.chdir(directory)
       self.homedir = directory
     def __init__ (self, loop, bus=None, path=PATH):
         self.loop = loop
@@ -187,45 +188,6 @@ class Timer (ScheduleManager, GPropSync):
         return timer
         
 
-      """
-    @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE, in_signature='ss', out_signature='v')
-    def Get(self, interface_name, property_name):
-        return self.GetAll(interface_name)[property_name]
-
-    @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
-                         in_signature='s', out_signature='a{sv}')
-    def GetAll(self, interface_name):
-        if interface_name == IFACE:
-            props = dict([(prop.name.replace('-', '_'), getattr(self, prop.name.replace('-', '_'))) for prop in self.props])
-            return props
-        else:
-            raise dbus.exceptions.DBusException(
-                'com.example.UnknownInterface',
-                'The Foo object does not implement the %s interface'
-                    % interface_name)
-
-    @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
-                         in_signature='ssv')
-    def Set(self, interface_name, property_name, new_value):
-        # validate the property name and value, update internal state
-        if interface_name == self.OWN_IFACE:
-          self.set_property(property_name, new_value)
-        # self.PropertiesChanged(interface_name,
-            # { property_name: new_value }, [])
-
-    @dbus.service.signal(dbus_interface=dbus.PROPERTIES_IFACE,
-                         signature='sa{sv}as')
-    def PropertiesChanged(self, interface_name, changed_properties,
-                          invalidated_properties):
-        print "dbus signal PropertiesChanged"
-        pass
-    def on_prop_change (self, obj, gparam):
-      print "dEBUG"
-      print gparam
-      changed = {gparam.name.replace('-', '_'): getattr(self, gparam.name.replace('-', '_'))}
-      print changed
-      self.PropertiesChanged(IFACE, changed, {})
-      """
 
     @dbus.service.method(dbus_interface=IFACE, in_signature='a{sv}', out_signature='v')
     def operate(self, kwds):
@@ -271,26 +233,4 @@ if __name__ == '__main__':
     app.Exit( )
     # app.name = args.name
   # app.dispatch(args)
-  """
-  from dbus.mainloop.glib import DBusGMainLoop
-  DBusGMainLoop (set_as_default=True)
-  loop = gobject.MainLoop ()
-  dbus.mainloop.glib.threads_init( )
-  # Start the heartbeat
-  handle = gobject.timeout_add_seconds (1, heartbeat)
-  print "STarting", sys.argv
-  timer = Timer (loop)
-  request = timer.bus.request_name(BUS, dbus.bus.NAME_FLAG_DO_NOT_QUEUE)
-  if request != dbus.bus.REQUEST_NAME_REPLY_EXISTS:
-    # Start the D-Bus service
-    app = timer
-    loop.run ()
-    print loop
-  else:
-    print "Already running", 'running howdy'
-    proxy = timer.bus.get_object(BUS, PATH)
-    app = dbus.Interface (proxy, IFACE)
-    print app
-    app.Howdy( )
-  """
 
