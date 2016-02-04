@@ -15,12 +15,14 @@ import _dbus_bindings
 import inspect
 
 from oacids.helpers.dbus_props import GPropSync, Manager, WithProperties
+
+from oacids.exported import managed
 # http://cyberelk.net/tim/2011/08/16/d-bus-and-python-asynchronous-method-implementation/
 # https://coelhorjc.wordpress.com/2014/12/09/howto-write-dbus-service-for-linux-in-python/
 # http://stackoverflow.com/questions/34851085/how-to-stop-a-dbus-gobject-loop/34860020#34860020
 
 BUS='org.openaps.Timer'
-IFACE='org.openps.Timer'
+IFACE='org.openaps.Timer'
 
 ObjectManager = 'org.freedesktop.DBus.ObjectManager'
 PATH='/org/openaps/Timer'
@@ -80,6 +82,7 @@ def is_running (bus, NAME):
     return True
 
 class Timer (ScheduleManager, GPropSync):
+    openaps = None
     OWN_IFACE = IFACE
     PROP_SIGS = {
       'fuel': 'i'
@@ -112,6 +115,9 @@ class Timer (ScheduleManager, GPropSync):
       if not os.path.exists(directory) or not os.path.isdir(directory):
         raise Exception("Not a directory: %s" % directory)
       os.chdir(directory)
+      if self.openaps:
+        self.openaps.remove_from_connection( )
+      self.openaps = managed.Looper(self.bus, self)
       self.homedir = directory
     def __init__ (self, loop, bus=None, path=PATH):
         self.loop = loop
@@ -218,11 +224,14 @@ def make_args_op (args):
     op.update(create=dict(name=args.create))
   return op
 
+def clean_path (p):
+  return os.path.realpath(os.path.expanduser(p))
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser( )
   parser.add_argument('--quit', action='store_true', default=False)
   parser.add_argument('--name')
-  parser.add_argument('--ini_home')
+  parser.add_argument('--ini_home', type=clean_path)
   parser.add_argument('--create')
   argcomplete.autocomplete(parser)
   args = parser.parse_args( )

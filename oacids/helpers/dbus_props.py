@@ -41,6 +41,8 @@ class WithProperties (ExportedGObject):
         reflection_data += '    </property>\n'
 
         return reflection_data
+
+
     def _reflect_on_gproperty(cls, prop):
         gname = prop.name.replace('-', '_')
         print "gname", gname
@@ -61,6 +63,28 @@ class WithProperties (ExportedGObject):
         reflection_data += '    </property>\n'
 
         return reflection_data
+
+
+    def _reflect_on_dict(cls, props):
+        reflection_data = ''
+        for name, prop in props.items( ):
+          print "name", name
+          value = prop
+          type_sig = cls.PROP_SIGS.get(name, 'v')
+          access_map = {
+            gobject.PARAM_READWRITE: 'readwrite'
+          , gobject.PARAM_READABLE: 'read'
+          , gobject.PARAM_WRITABLE: 'write'
+          }
+          access = 'readwrite'
+          reflection_data += '    <property name="%s" type="%s" access="%s">\n' % (name, type_sig, access)
+          for annotation in getattr(prop, '_dbus_annotations', [ ]):
+              reflection_data += '      <annotation name="%s" value="true" />\n' % pair
+              # reflection_data += '      <arg direction="in"  type="%s" name="%s" />\n' % pair
+
+          reflection_data += '    </property>\n'
+
+        return reflection_data
     @dbus.service.method(INTROSPECTABLE_IFACE, in_signature='', out_signature='s',
             path_keyword='object_path', connection_keyword='connection')
     def Introspect(self, object_path, connection):
@@ -75,6 +99,8 @@ class WithProperties (ExportedGObject):
             reflection_data += '  <interface name="%s">\n' % (name)
 
             if name == self.OWN_IFACE:
+              if getattr(getattr(self, 'item', None), 'fields', None):
+                reflection_data += self._reflect_on_dict(self.item.fields)
               for prop in self.props:
                 reflection_data += self._reflect_on_gproperty(prop)
 
@@ -112,7 +138,7 @@ class GPropSync (WithProperties):
 
     @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE, in_signature='ss', out_signature='v')
     def Get(self, interface_name, property_name):
-        return self.GetAll(interface_name)[property_name]
+        return self.GetAll(interface_name)[str(property_name)]
 
     @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
                          in_signature='s', out_signature='a{sv}')
