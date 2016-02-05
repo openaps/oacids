@@ -103,7 +103,8 @@ class Configurable (GPropSync):
   PROP_SIGS = {
     'name': 's'
   }
-  def __init__ (self, bus, path, device):
+  isExtra = False
+  def __init__ (self, bus, path, device, IsExtra=False):
     self.item = device
     self.path = path
     GPropSync.__init__(self, bus, path)
@@ -116,7 +117,17 @@ class Configurable (GPropSync):
     self.name = device.name
     for field in self.item.required:
       self.PROP_SIGS[field] = self.PROP_SIGS.get(field, 's')
-    self.PropertiesChanged(self.OWN_IFACE, self.item.fields, [])
+    fields = self.item.fields
+    if self.isExtra:
+      print "EXTRA", self.path
+      print self.item.extra.fields
+      fields = self.item.extra.fields
+    for x in fields.keys( ):
+      self.PROP_SIGS[x] = self.PROP_SIGS.get(x, 's')
+    self.PropertiesChanged(self.OWN_IFACE, fields, [])
+    if hasattr(self.item, 'extra') and not IsExtra:
+      extra_path = self.path + 'Extra'
+      self.extra_config = ExtraConfig(bus, extra_path, self.item, IsExtra=True)
    
   @classmethod
   def LookUp (Klass, parent, announce=False):
@@ -125,7 +136,10 @@ class Configurable (GPropSync):
       if announce:
         print report.OWN_IFACE
         print report.item.fields
-        spec = { report.OWN_IFACE: dict(name=report.item.name, **report.item.fields) }
+        fields = report.item.fields
+        if Klass.isExtra:
+          fields = report.item.extra.fields
+        spec = { report.OWN_IFACE: dict(name=report.item.name, **fields) }
         parent.InterfacesAdded(report.path, spec)
     return reports
 
@@ -144,7 +158,10 @@ class Configurable (GPropSync):
   def Get(self, interface_name, property_name):
       if getattr(self, property_name, None):
         return getattr(self, property_name)
-      return self.item.fields[property_name]
+      fields = self.item.fields
+      if self.isExtra:
+        fields = self.item.extra.fields
+      return fields[property_name]
   @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
                        in_signature='s', out_signature='a{sv}')
   def GetAll(self, interface_name):
@@ -153,7 +170,10 @@ class Configurable (GPropSync):
       if interface_name == self.OWN_IFACE:
           # props = dict([(prop.name.replace('-', '_'), getattr(self, prop.name.replace('-', '_'))) for prop in self.props])
           # return props
-          return dict(name=self.name, **self.item.fields)
+          fields = self.item.fields
+          if self.isExtra:
+            fields = self.item.extra.fields
+          return dict(name=self.name, **fields)
       else:
           raise dbus.exceptions.DBusException(
               'com.example.UnknownInterface',
@@ -165,11 +185,14 @@ class Configurable (GPropSync):
       # validate the property name and value, update internal state
       if interface_name == self.OWN_IFACE:
         # self.set_property(property_name, new_value)
-        old_value = self.item.fields.get(property_name, None)
+        fields = self.item.fields
+        if self.isExtra:
+          fields = self.item.extra.fields
+        old_value = fields.get(property_name, None)
         old = [ ]
         if old_value is not None and old_value != new_value:
           old = [ { property_name: old_value } ]
-        self.item.fields[property_name] = new_value
+        fields[property_name] = new_value
         self.PropertiesChanged(interface_name,
             { property_name: new_value }, old)
 
@@ -220,6 +243,17 @@ class Vendors (Configurable):
     return devices
 
 
+class ExtraConfig (Configurable):
+  OWN_IFACE = OPENAPS_IFACE + '.DeviceExtra'
+  PATH_SPEC = PATH + '/Instance/Device%s'
+  isExtra = True
+
+  @dbus.service.method(dbus_interface=OWN_IFACE,
+                       in_signature='', out_signature='s')
+  def Version (self):
+    print "Howdy!", openaps.__version__
+    return openaps.__version__
+
 
 class Devices (Configurable):
   OWN_IFACE = OPENAPS_IFACE + '.Device'
@@ -229,24 +263,7 @@ class Devices (Configurable):
   , 'vendor': 's'
   , 'extra': 's'
   }
-  """
-  name = gobject.property(type=str, blurb="Name of device")
-  vendor = gobject.property(type=str, blurb="Name of vendor")
-  extra = gobject.property(type=str, blurb="Name of extra.ini")
-  """
-  """
-  def __init__ (self, bus, path, device):
-    self.path = path
-    self.bus = bus
-    self.device = device
-    GPropSync.__init__(self, bus, path)
-  """
-  """
-  if device.fields:
-    self.set_property('name', device.name)
-    for key in device.fields:
-      self.set_property(key, device.fields[key])
-  """
+
 
   @dbus.service.method(dbus_interface=OWN_IFACE,
                        in_signature='', out_signature='s')

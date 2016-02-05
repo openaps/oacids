@@ -100,7 +100,10 @@ class WithProperties (ExportedGObject):
 
             if name == self.OWN_IFACE:
               if getattr(getattr(self, 'item', None), 'fields', None):
-                reflection_data += self._reflect_on_dict(self.item.fields)
+                fields = self.item.fields
+                if self.isExtra and hasattr(self.item, 'extra'):
+                  fields = self.item.extra.fields
+                reflection_data += self._reflect_on_dict(fields)
               for prop in self.props:
                 reflection_data += self._reflect_on_gproperty(prop)
 
