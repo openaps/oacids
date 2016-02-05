@@ -96,7 +96,10 @@ class Looper (GPropSync, Manager, openaps.cli.ConfigApp):
 
 
 class Configurable (GPropSync):
-  name = gobject.property(type=str, blurb="Name of thing")
+  # name = gobject.property(type=str, blurb="Name of thing")
+  @gobject.Property(type=str, blurb="Name of thing")
+  def name (self):
+    return self.item.name
   PROP_SIGS = {
     'name': 's'
   }
