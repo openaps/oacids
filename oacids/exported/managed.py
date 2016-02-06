@@ -22,26 +22,28 @@ class Looper (GPropSync, Manager, openaps.cli.ConfigApp):
     Manager.__init__(self, self.path, bus)
     self.sync_all_props( )
     self.read_config( )
-    self.devices = self.lookup_devices(announce=True )
-    self.reports = self.lookup_reports(announce=True )
+
+    self.devices = Devices.LookUp(self, announce=True )
+    self.reports = Reports.LookUp(self, announce=True )
     self.alias = Alias.LookUp(self, announce=True )
     self.vendors = Vendors.LookUp(self, announce=True )
 
   def get_all_managed (self):
-    """
-      # in_signature='', out_signature='a{oa{sa{sv}}}')
-      [ { obj_path: 
-          [ { interface: { k: v } } ]
-      } ]
-    """
-    return [ ] + self.get_devices( ) + self.get_reports( ) + self.GetSpecs(self.alias) + self.GetSpecs(self.vendors)
+
+    things = dict( )
+    things.update(**self.GetSpecs(self.devices))
+    things.update(**self.GetSpecs(self.reports))
+    things.update(**self.GetSpecs(self.alias))
+    things.update(**self.GetSpecs(self.vendors))
+    return things
+    return [ ] + self.GetSpecs(self.devices) + self.GetSpecs(self.reports) + self.GetSpecs(self.alias) + self.GetSpecs(self.vendors)
 
   def get_devices (self, announce=False):
     specs = [ ]
     for device in self.devices:
       print device.OWN_IFACE
       print device.item.fields
-      spec = { device.OWN_IFACE: dict(name, device.item.name, **device.item.fields) }
+      spec = { device.OWN_IFACE: dict(name=device.item.name, **device.item.fields) }
       specs.append({ device.path: [ spec ] })
     print "DEVICES DBUS SPEC", specs
     return specs
@@ -56,14 +58,20 @@ class Looper (GPropSync, Manager, openaps.cli.ConfigApp):
     return devices
 
   def GetSpecs (self, things):
+    # in_signature='', out_signature='a{oa{sa{sv}}}')
     specs = [ ]
+    ifaces = dict( )
+    paths = dict( )
     for thing in things:
+      print thing.path
       print thing.OWN_IFACE
       print thing.item.fields
-      spec = { thing.OWN_IFACE: dict(name=thing.item.name, **thing.item.fields) }
-      specs.append({ thing.path: [ spec ] })
+      spec = { thing.OWN_IFACE:  dict(name=thing.item.name, **thing.item.fields) }
+      paths[thing.path] = spec
+      specs.append([ thing.path,  spec  ])
     print "DBUS Managed SPEC", specs
-    return specs
+    return paths
+    return paths.keys( )
   def get_reports (self, announce=False):
     specs = [ ]
     for report in self.reports:

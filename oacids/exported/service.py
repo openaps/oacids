@@ -15,6 +15,7 @@ class Trigger (GPropSync):
   name = gobject.property(type=str)
   def __init__ (self, path, bus=None, props=None):
     self.bus = bus or dbus.SessionBus( )
+    self.path = path
     WithProperties.__init__(self, self.bus.get_connection( ), path)
     if props:
       for key in props:
@@ -33,6 +34,12 @@ class ScheduleManager (Manager):
   def init_managed (self):
     self.schedules = [ ]
   def get_all_managed (self):
+    paths = dict( )
+    for thing in self.schedules:
+      print thing
+      spec = { thing.OWN_IFACE:  dict(**thing.GetAll(thing.OWN_IFACE)) }
+      paths[thing.path] = spec
+    return paths
     managed = self.schedules
     return managed
   @dbus.service.method(dbus_interface=IFACE,
