@@ -26,6 +26,7 @@ class Trigger (GPropSync):
                        async_callbacks=('ack', 'error'))
   def Remove (self, ack=None, error=None):
     ack( )
+
 class ScheduleManager (Manager):
   def __init__ (self, bus, path):
     self.bus = bus
@@ -86,7 +87,11 @@ class NaiveService (ScheduleManager, GPropSync):
       directory = os.path.realpath(os.path.expanduser(value))
       print "NEW HOME", value, directory, os.path.isdir(directory)
       if not os.path.exists(directory) or not os.path.isdir(directory):
-        raise Exception("Not a directory: %s" % directory)
+        # raise Exception("Not a directory: %s" % directory)
+        raise dbus.exceptions.DBusException(
+            self.OWN_IFACE,
+            'Directory does not exist, failed to set ini_home to: %s.'
+                % directory)
       os.chdir(directory)
       if self.openaps:
         self.openaps.remove_from_connection( )

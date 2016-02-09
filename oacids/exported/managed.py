@@ -23,14 +23,30 @@ class Looper (GPropSync, Manager, openaps.cli.ConfigApp):
     self.sync_all_props( )
     self.read_config( )
 
+    self.init_backends( )
+    """
+    self.backends = configurable_entries( )
     self.devices = Devices.LookUp(self, announce=True )
     self.reports = Reports.LookUp(self, announce=True )
     self.alias = Alias.LookUp(self, announce=True )
     self.vendors = Vendors.LookUp(self, announce=True )
+    """
+
+  def init_backends (self):
+    self.backends = configurable_entries( )
+    self.things = dict( )
+    for key in self.backends:
+      Thing = self.backends[key]
+      things = Thing.LookUp(self, announce=True)
+      self.things[key] = things
 
   def get_all_managed (self):
 
     things = dict( )
+    for key in self.things:
+      things.update(**self.GetSpecs(self.things[key]))
+    return things
+
     things.update(**self.GetSpecs(self.devices))
     things.update(**self.GetSpecs(self.reports))
     things.update(**self.GetSpecs(self.alias))
@@ -261,7 +277,38 @@ class ExtraConfig (Configurable):
     print "Howdy!", openaps.__version__
     return openaps.__version__
 
+def configurable_entries ( ):
+  import pkg_resources
+  mods = { }
+  for entry in pkg_resources.iter_entry_points('openaps.importable'):
+    mod = entry.load( )
+    mods[entry.name] = MakeManaged(mod, entry)
+  return mods
 
+def MakeManaged (mod, entry):
+  title_name = entry.name.title( )
+  iface_name = OPENAPS_IFACE + '.' + title_name
+  title_item = mod.Exported.Configurable.prefix.title( )
+
+  class ManagedObject (Configurable):
+    __name__ = mod.Exported.Configurable.__name__
+    OWN_IFACE = iface_name
+    PATH_SPEC = PATH + '/Instance/' + title_item + '%s'
+    core = mod
+    entry_point = entry
+
+    @classmethod
+    def GetMap (Klass, parent):
+      devices = mod.Exported.get_map(parent.config)
+      return devices
+
+    @dbus.service.method(dbus_interface=OWN_IFACE,
+                         in_signature='', out_signature='s')
+    def Version (self):
+      print "Howdy!", openaps.__version__
+      return openaps.__version__
+    pass
+  return ManagedObject
 class Devices (Configurable):
   OWN_IFACE = OPENAPS_IFACE + '.Device'
   PATH_SPEC = PATH + '/Instance/Device%s'
