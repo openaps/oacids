@@ -200,7 +200,7 @@ class Scheduler (GPropSync, Manager):
     paths = dict( )
     for thing in self.schedules:
       print thing
-      spec = { thing.trigger.OWN_IFACE:  dict(**thing.trigger.GetAll(thing.OWN_IFACE)) }
+      spec = { thing.trigger.OWN_IFACE:  dict(**thing.trigger.GetAll(thing.trigger.OWN_IFACE)) }
       paths[thing.trigger.path] = spec
     return paths
 

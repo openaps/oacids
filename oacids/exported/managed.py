@@ -24,13 +24,6 @@ class Instance (GPropSync, Manager, openaps.cli.ConfigApp):
     self.read_config( )
 
     self.init_backends( )
-    """
-    self.backends = configurable_entries( )
-    self.devices = Devices.LookUp(self, announce=True )
-    self.reports = Reports.LookUp(self, announce=True )
-    self.alias = Alias.LookUp(self, announce=True )
-    self.vendors = Vendors.LookUp(self, announce=True )
-    """
 
   def init_backends (self):
     self.backends = configurable_entries( )
@@ -46,13 +39,6 @@ class Instance (GPropSync, Manager, openaps.cli.ConfigApp):
     for key in self.things:
       things.update(**self.GetSpecs(self.things[key]))
     return things
-
-    things.update(**self.GetSpecs(self.devices))
-    things.update(**self.GetSpecs(self.reports))
-    things.update(**self.GetSpecs(self.alias))
-    things.update(**self.GetSpecs(self.vendors))
-    return things
-    return [ ] + self.GetSpecs(self.devices) + self.GetSpecs(self.reports) + self.GetSpecs(self.alias) + self.GetSpecs(self.vendors)
 
   def get_devices (self, announce=False):
     specs = [ ]
@@ -217,58 +203,6 @@ class Configurable (GPropSync):
         self.PropertiesChanged(interface_name,
             { property_name: new_value }, old)
 
-
-# obsoleted with entry_points
-
-"""
-class Reports (Configurable):
-  OWN_IFACE = OPENAPS_IFACE + '.Report'
-  PATH_SPEC = PATH + '/Instance/Report%s'
-
-  @classmethod
-  def GetMap (Klass, parent):
-    devices = openaps.reports.get_report_map(parent.config)
-    return devices
-
-  @dbus.service.method(dbus_interface=OWN_IFACE,
-                       in_signature='', out_signature='s')
-  def Version (self):
-    print "Howdy!", openaps.__version__
-    return openaps.__version__
-
-class Alias (Configurable):
-  OWN_IFACE = OPENAPS_IFACE + '.Alias'
-  PATH_SPEC = PATH + '/Instance/Alias%s'
-
-  @classmethod
-  def GetMap (Klass, parent):
-    devices = openaps.alias.get_alias_map(parent.config)
-    return devices
-
-  @dbus.service.method(dbus_interface=OWN_IFACE,
-                       in_signature='', out_signature='s')
-  def Version (self):
-    print "Howdy!", openaps.__version__
-    return openaps.__version__
-
-
-class Vendors (Configurable):
-  OWN_IFACE = OPENAPS_IFACE + '.Vendor'
-  PATH_SPEC = PATH + '/Instance/Vendor%s'
-
-  @classmethod
-  def GetMap (Klass, parent):
-    devices = openaps.vendors.plugins.get_vendor_map(parent.config)
-    return devices
-
-  @dbus.service.method(dbus_interface=OWN_IFACE,
-                       in_signature='', out_signature='s')
-  def Version (self):
-    print "Howdy!", openaps.__version__
-    return openaps.__version__
-
-"""
-
 class ExtraConfig (Configurable):
   OWN_IFACE = OPENAPS_IFACE + '.DeviceExtra'
   PATH_SPEC = PATH + '/Instance/Device%s'
@@ -312,30 +246,3 @@ def MakeManaged (mod, entry):
       return openaps.__version__
     pass
   return ManagedObject
-"""
-class Devices (Configurable):
-  OWN_IFACE = OPENAPS_IFACE + '.Device'
-  PATH_SPEC = PATH + '/Instance/Device%s'
-  PROP_SIGS = {
-    'name': 's'
-  , 'vendor': 's'
-  , 'extra': 's'
-  }
-
-  @classmethod
-  def GetMap (Klass, parent):
-    devices = openaps.devices.get_device_map(parent.config)
-    return devices
-
-  @dbus.service.method(dbus_interface=OWN_IFACE,
-                       in_signature='', out_signature='s')
-  def Version (self):
-    print "Howdy!", openaps.__version__
-    return openaps.__version__
-
-  @classmethod
-  def FromConfig (Klass, config):
-    devices =  openaps.devices.get_device_map(config)
-    print "FOUND DEVICES", devices
-    return devices
-"""
