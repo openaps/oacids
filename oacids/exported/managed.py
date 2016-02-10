@@ -218,7 +218,9 @@ class Configurable (GPropSync):
             { property_name: new_value }, old)
 
 
+# obsoleted with entry_points
 
+"""
 class Reports (Configurable):
   OWN_IFACE = OPENAPS_IFACE + '.Report'
   PATH_SPEC = PATH + '/Instance/Report%s'
@@ -265,6 +267,7 @@ class Vendors (Configurable):
     print "Howdy!", openaps.__version__
     return openaps.__version__
 
+"""
 
 class ExtraConfig (Configurable):
   OWN_IFACE = OPENAPS_IFACE + '.DeviceExtra'
@@ -309,6 +312,7 @@ def MakeManaged (mod, entry):
       return openaps.__version__
     pass
   return ManagedObject
+"""
 class Devices (Configurable):
   OWN_IFACE = OPENAPS_IFACE + '.Device'
   PATH_SPEC = PATH + '/Instance/Device%s'
@@ -334,3 +338,4 @@ class Devices (Configurable):
     devices =  openaps.devices.get_device_map(config)
     print "FOUND DEVICES", devices
     return devices
+"""

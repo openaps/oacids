@@ -9,6 +9,7 @@ import managed
 import heartbeat
 import scheduler
 
+"""
 class Trigger (GPropSync):
   OWN_IFACE = TRIGGER_IFACE
   PROP_SIGS = {
@@ -28,6 +29,7 @@ class Trigger (GPropSync):
                        async_callbacks=('ack', 'error'))
   def Remove (self, ack=None, error=None):
     ack( )
+"""
 
 class ScheduleManager (Manager):
   def __init__ (self, bus, path):
@@ -45,6 +47,7 @@ class ScheduleManager (Manager):
     return paths
     managed = self.schedules
     return managed
+  """
   @dbus.service.method(dbus_interface=IFACE,
                        in_signature='a{sv}', out_signature='')
                        # , async_callbacks=('ack', 'error'))
@@ -56,6 +59,7 @@ class ScheduleManager (Manager):
     self.schedules.append(new_schedule)
     self.InterfacesAdded(path, { TRIGGER_IFACE: props })
 
+  """
 
 class NaiveService (ScheduleManager, GPropSync):
     openaps = None
