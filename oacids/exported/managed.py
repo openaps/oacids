@@ -13,7 +13,7 @@ import openaps.reports
 import openaps.vendors.plugins
 import openaps.alias
 
-class Looper (GPropSync, Manager, openaps.cli.ConfigApp):
+class Instance (GPropSync, Manager, openaps.cli.ConfigApp):
   OWN_IFACE = OPENAPS_IFACE
   def __init__ (self, bus, ctrl):
     self.bus = bus

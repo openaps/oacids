@@ -45,7 +45,6 @@ class WithProperties (ExportedGObject):
 
     def _reflect_on_gproperty(cls, prop):
         gname = prop.name.replace('-', '_')
-        print "gname", gname
         type_sig = cls.PROP_SIGS.get(gname, 'v')
         access_map = {
           gobject.PARAM_READWRITE: 'readwrite'
@@ -68,7 +67,6 @@ class WithProperties (ExportedGObject):
     def _reflect_on_dict(cls, props):
         reflection_data = ''
         for name, prop in props.items( ):
-          print "name", name
           value = prop
           type_sig = cls.PROP_SIGS.get(name, 'v')
           access_map = {
@@ -168,7 +166,6 @@ class GPropSync (WithProperties):
                          signature='sa{sv}as')
     def PropertiesChanged(self, interface_name, changed_properties,
                           invalidated_properties):
-        print "dbus signal PropertiesChanged"
         pass
 
 # class Timer(dbus.service.Object):

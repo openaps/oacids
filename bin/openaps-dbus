@@ -53,8 +53,7 @@ class Timer (service.NaiveService):
       DBusGMainLoop (set_as_default=True)
       loop = gobject.MainLoop ()
       dbus.mainloop.glib.threads_init( )
-      # Start the heartbeat
-      handle = gobject.timeout_add_seconds (1, heartbeat)
+
       print "STarting", sys.argv
       bus = dbus.SessionBus( )
       op = make_args_op(args)

@@ -6,6 +6,8 @@ from gi.repository import GObject as gobject
 from oacids.helpers.dbus_props import GPropSync, Manager, WithProperties
 from ifaces import BUS, IFACE, PATH, INTROSPECTABLE_IFACE, TRIGGER_IFACE
 import managed
+import heartbeat
+import scheduler
 
 class Trigger (GPropSync):
   OWN_IFACE = TRIGGER_IFACE
@@ -70,6 +72,7 @@ class NaiveService (ScheduleManager, GPropSync):
     blah = gobject.property(type=str)
     homedir = gobject.property(type=str, default=".")
     mode = gobject.property(type=str, flags=gobject.PARAM_READABLE, default='foo')
+    heartbeat = None
 
     @gobject.property(type=int, default=0)
     def status (self):
@@ -95,7 +98,7 @@ class NaiveService (ScheduleManager, GPropSync):
       os.chdir(directory)
       if self.openaps:
         self.openaps.remove_from_connection( )
-      self.openaps = managed.Looper(self.bus, self)
+      self.openaps = managed.Instance(self.bus, self)
       self.homedir = directory
     def __init__ (self, loop, bus=None, path=PATH):
         self.loop = loop
@@ -106,6 +109,8 @@ class NaiveService (ScheduleManager, GPropSync):
         ScheduleManager.__init__(self, self.bus, PATH)
         self.sync_all_props( )
         self.init_managed( )
+        self.ResetHeartbeat( )
+        self.scheduler = scheduler.Scheduler(self.bus, self)
         # self.connect("notify::ini-home", self.on_change_home)
 
 
@@ -118,6 +123,15 @@ class NaiveService (ScheduleManager, GPropSync):
         print "Sleeping for %ds" % seconds
         gobject.timeout_add_seconds (seconds,
                                      lambda: reply_handler (seconds))
+
+    @dbus.service.method(dbus_interface=IFACE,
+                         in_signature='', out_signature='')
+    def ResetHeartbeat (self):
+      if self.heartbeat:
+        self.heartbeat.Stop( )
+        self.heartbeat.remove_from_connection( )
+      self.heartbeat = heartbeat.Heartbeat(self.bus, self)
+      print "Set up HEARTBEAT!", self.heartbeat
 
     @dbus.service.method(dbus_interface=IFACE,
                          in_signature='', out_signature='')
