@@ -13,8 +13,8 @@ import recurrent
 from collections import deque, defaultdict
 import hashlib
 
-class Expected (GPropSync):
-  OWN_IFACE = OPENAPS_IFACE + '.Expected'
+class Trigger (GPropSync):
+  OWN_IFACE = IFACE + '.Trigger'
   PROP_SIGS = {
     'name': 's'
   , 'obj': 's'
@@ -22,18 +22,26 @@ class Expected (GPropSync):
   , 'phases': 's'
   , 'rrule': 's'
   , 'id': 's'
+  , 'countdown': 'd'
   }
   name = gobject.property(type=str)
   expected = gobject.property(type=str)
   obj = gobject.property(type=str)
   phases = gobject.property(type=str)
   rrule = gobject.property(type=str)
-  id = gobject.property(type=str)
-  def __init__ (self, path, manager=None, props=None):
+  @gobject.property(type=float)
+  def countdown (self):
+    return (self.when - datetime.datetime.now( )).total_seconds( )
+  @gobject.property(type=str)
+  def id (self):
+    return self.armed.hashed
+  def __init__ (self, path, manager=None, props=None, armed=None):
     self.manager = manager
     bus = manager.bus
     self.bus = bus or dbus.SessionBus( )
     self.path = path
+    self.when = armed.when
+    self.armed = armed
     GPropSync.__init__(self, self.bus.get_connection( ), path)
     # WithProperties.__init__(self, self.bus.get_connection( ), path)
     if props:
@@ -45,7 +53,7 @@ class Expected (GPropSync):
                        signature='')
   def Fire (self):
     now = datetime.datetime.now( )
-    print "FIRED", now.isoformat( ), self.expected
+    print "FIRED", now.isoformat( ), self.when.isoformat( ), self.name
   @dbus.service.signal(dbus_interface=OWN_IFACE,
                        signature='')
   def Remove (self):
@@ -79,7 +87,7 @@ class Armable (object):
     print "cleaning up"
     self.manager.schedules.pop(self)
     if self.trigger:
-      self.manager.InterfacesRemoved(self.trigger.path, { Expected.OWN_IFACE: self.props })
+      self.manager.InterfacesRemoved(self.trigger.path, { Trigger.OWN_IFACE: self.props })
       self.trigger.remove_from_connection( )
 
 
@@ -87,17 +95,17 @@ class Armable (object):
     self.manager = manager
     props = dict(obj=self.remote.path, name=self.remote.item.name, expected=self.when.isoformat( ), **self.remote.item.fields)
     self.props = props
-    new_path = PATH + '/Trigger/' + self.hashed
+    new_path = PATH + '/Scheduler/Armed/' + self.hashed
     delay_ms = (self.when - datetime.datetime.now( )).total_seconds( ) * 1000
-    self.remote.bus.add_signal_receiver(self.cleanup, "Fire", dbus_interface=Expected.OWN_IFACE, bus_name=BUS, path=new_path)
+    self.remote.bus.add_signal_receiver(self.cleanup, "Fire", dbus_interface=Trigger.OWN_IFACE, bus_name=BUS, path=new_path)
     trigger = None
     try:
-      trigger = Expected(new_path, manager, props)
+      trigger = Trigger(new_path, manager, props, self)
       if trigger:
         self.trigger = trigger
         print "DELAYING", delay_ms
         gobject.timeout_add(delay_ms, trigger.Fire)
-        manager.InterfacesAdded(trigger.path, { Expected.OWN_IFACE: props })
+        manager.InterfacesAdded(trigger.path, { Trigger.OWN_IFACE: props })
     except:
       print "already exited?"
       raise
@@ -106,7 +114,7 @@ class Armable (object):
     return trigger
 
 class Scheduler (GPropSync, Manager):
-  OWN_IFACE = OPENAPS_IFACE + '.Scheduler'
+  OWN_IFACE = IFACE + '.Scheduler'
   PROP_SIGS = {
     'TaskWithin': 'd'
   , 'MaxTasksAhead': 'u'
@@ -126,12 +134,23 @@ class Scheduler (GPropSync, Manager):
     candidates = self.Poll(within_seconds=self.TaskWithin)
     for candidate in candidates:
       # self.enqueue(candidate)
-      print candidate
-      print self.schedules
+      # print candidate
+      # print self.schedules
       
+      is_armed = False
       other = self.schedules.get(candidate, None)
       if other is None:
-        self.schedules[candidate] = candidate.arm(self)
+        try:
+          self.schedules[candidate] = candidate.arm(self)
+          is_armed = True
+        except Exception, e:
+          print "what happened?", e
+          pass
+      else:
+        pass
+        # print "already scheduled", candidate
+      txt = { True: "ARMED", False: "skipped" }
+      print txt.get(is_armed), candidate.when, candidate.remote.item.name, candidate.remote.path
 
     return 
 
@@ -140,18 +159,20 @@ class Scheduler (GPropSync, Manager):
     results = [ ]
     candidates = self.master.openaps.things.get('schedules', [ ])
     now = datetime.datetime.now( )
-    print "polling schedules", len(candidates), now.isoformat( ), 'for', self.MaxTasksAhead, 'MaxTasksAhead'
+    # print "polling schedules", len(candidates), now.isoformat( ), 'for', self.MaxTasksAhead, 'MaxTasksAhead'
     for configured in candidates:
       # print "SCHEDULE", configured.item.fields
       # spec = recurrent.parse(configured.item.fields['rrule'], now=self.since)
       spec = configured.item.fields['rrule']
       rr = rrule.rrulestr(spec, dtstart=self.since)
-      print configured.item.name, configured.path, spec
       # print configured.item.fields['rrule'], spec
       upcoming = rr.after(now)
       # print "next", upcoming.isoformat( )
-      if (upcoming - now).total_seconds( ) <= within_seconds:
-        print "ARM THING", configured.path
+      # XXX: bug in making: need to fill out all events before within_seconds as well.
+      # if (upcoming - now).total_seconds( ) <= within_seconds:
+      for upcoming in iter_triggers(upcoming, rr, within_seconds):
+        # print "ARM THING", configured.path
+        # print "ATTEMPT ARM", configured.item.name, configured.path, spec
         # self.enqueue(upcoming, configured)
         trigger = Armable(upcoming, configured)
         # exists = self.schedules[(upcoming, configured.item.name)]
@@ -179,11 +200,10 @@ class Scheduler (GPropSync, Manager):
     paths = dict( )
     for thing in self.schedules:
       print thing
-      spec = { thing.OWN_IFACE:  dict(**thing.GetAll(thing.OWN_IFACE)) }
-      paths[thing.path] = spec
+      spec = { thing.trigger.OWN_IFACE:  dict(**thing.trigger.GetAll(thing.OWN_IFACE)) }
+      paths[thing.trigger.path] = spec
     return paths
-    managed = self.schedules
-    return managed
+
   @dbus.service.method(dbus_interface=OWN_IFACE,
                        in_signature='a{sv}', out_signature='')
                        # , async_callbacks=('ack', 'error'))
@@ -194,3 +214,8 @@ class Scheduler (GPropSync, Manager):
     print "NEW SCHEDULE", new_schedule
     self.schedules.append(new_schedule)
     self.InterfacesAdded(path, { TRIGGER_IFACE: props })
+def iter_triggers (upcoming, rule, within_seconds):
+  end = upcoming + datetime.timedelta(seconds=within_seconds)
+  while upcoming < end:
+    yield upcoming
+    upcoming = rule.after(upcoming)

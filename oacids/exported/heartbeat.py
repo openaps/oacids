@@ -67,7 +67,8 @@ class Heartbeat (GPropSync, Manager):
   @dbus.service.signal(dbus_interface=OWN_IFACE,
                        signature='')
   def heartbeat (self):
-      print "Heartbeat Still alive at", self.uptime
+      pass
+      # print "Heartbeat Still alive at", self.uptime
   def _tick (self):
       self.heartbeat( )
       return self.Ticking
