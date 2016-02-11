@@ -44,6 +44,7 @@ class Trigger (GPropSync):
     self.armed = armed
     GPropSync.__init__(self, self.bus.get_connection( ), path)
     # WithProperties.__init__(self, self.bus.get_connection( ), path)
+    self.attrs = props
     if props:
       for key in props:
         self.set_property(key, props[key])
@@ -54,6 +55,7 @@ class Trigger (GPropSync):
   def Fire (self):
     now = datetime.datetime.now( )
     print "FIRED", now.isoformat( ), self.when.isoformat( ), self.name
+    self.manager.master.background.Do(self.attrs)
   @dbus.service.signal(dbus_interface=OWN_IFACE,
                        signature='')
   def Remove (self):
