@@ -8,6 +8,7 @@ from ifaces import BUS, IFACE, PATH, INTROSPECTABLE_IFACE, TRIGGER_IFACE
 import managed
 import heartbeat
 import scheduler
+import doable
 
 """
 class Trigger (GPropSync):
@@ -114,6 +115,7 @@ class NaiveService (ScheduleManager, GPropSync):
         self.sync_all_props( )
         self.init_managed( )
         self.ResetHeartbeat( )
+        self.background = doable.Doable(self)
         self.scheduler = scheduler.Scheduler(self.bus, self)
         # self.connect("notify::ini-home", self.on_change_home)
 
