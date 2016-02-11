@@ -17,6 +17,15 @@ from threading import Thread
 import random
 import time
 
+from oacids.tools import do
+import openaps.cli
+import argcomplete
+import traceback
+import sys
+
+DoTool = do.DoTool
+
+
 class Task (object):
   def __init__ (self, manager, Q):
     self.manager = manager
@@ -33,11 +42,22 @@ class Task (object):
     print "running", self, self.running
     while self.running or not self.Q.empty( ):
       item = self.Q.get( )
-      print "GOT ITEM", item
-      sleepr = random.randrange(100.0, 4000.0) / 1000.0
-      print "sleeping", sleepr
-      time.sleep(sleepr)
-      print "DONE"
+      results = None
+      # http://stackoverflow.com/questions/5943249/python-argparse-and-controlling-overriding-the-exit-status-code
+      try:
+        app = DoTool.Make(item)
+        print "GOT ITEM", item, app
+        results = app( )
+      except (SystemExit), e:
+        print "EXCEPTINO!!!!", "argparse fail?"
+      except (Exception), e:
+        print "EXCEPTINO!!!!"
+        print e
+        if e:
+          traceback.print_exc(file=sys.stdout)
+          # traceback.print_last( )
+
+      print "DONE", results
       self.Q.task_done( )
 
   def stop (self):
