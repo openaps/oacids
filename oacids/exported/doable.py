@@ -34,7 +34,7 @@ class Task (object):
     while self.running or not self.Q.empty( ):
       item = self.Q.get( )
       print "GOT ITEM", item
-      sleepr = random.randrange(100, 4000) / 1000
+      sleepr = random.randrange(100.0, 4000.0) / 1000.0
       print "sleeping", sleepr
       time.sleep(sleepr)
       print "DONE"
@@ -76,8 +76,8 @@ class Doable (GPropSync, Manager):
   @dbus.service.method(dbus_interface=OWN_IFACE,
                        in_signature='', out_signature='s')
   def Shutdown (self):
-    self.background.stop( )
     self.Q.join( )
+    self.background.stop( )
     return "OK"
 
   @dbus.service.signal(dbus_interface=OWN_IFACE,
