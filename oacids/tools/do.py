@@ -1,4 +1,6 @@
 
+from subprocess import call
+import shlex
 import random
 import time
 import openaps.cli
@@ -19,7 +21,7 @@ class TODOFixARGV (openaps.cli.ConfigApp):
     self.prep_parser( )
     self.configure_parser(self.parser)
     argcomplete.autocomplete(self.parser, always_complete_options=self.always_complete_options);
-    print "FIXED INPUTS??", self.inputs
+    # print "FIXED INPUTS??", self.inputs
     self.args = self.parser.parse_args(self.inputs)
     self.prolog( )
     self.run(self.args)
@@ -30,7 +32,7 @@ class WrappedReports (TODOFixARGV):
   """ report - reusable reports
 
   """
-
+  # XXX: mostly copied from bin/openaps-report
   name = 'report'
   def configure_parser (self, parser):
     self.read_config( )
@@ -58,12 +60,37 @@ class WrappedReports (TODOFixARGV):
     # super(ReportToolApp, self).epilog( )
 
   def run (self, args):
-    print "WRAPPED", self.inputs
+    # print "WRAPPED", self.inputs
     # print "WRAPPED", args
     app = self.actions.selected(args)
     output = app(args, self)
     print "OUTPUT:"
     print output
+
+class WrappedAlias (object):
+  """ tool for running alias from code
+
+
+  """
+  name = 'alias'
+  def __init__ (self, spec):
+    # self.parent = parent
+    self.spec = spec
+  def configure_parser (self, parser):
+    parser.add_argument('--bash', '-c', nargs='*')
+    parser.add_argument('command', nargs='*')
+    # parser.add_argument('args', nargs='*')
+    # self.read_config( )
+  def epilog (self):
+    print "EPILOG"
+  def __call__ (self):
+    # print "ALIAS inner WRAPPED", self.spec
+
+
+    spec_command = shlex.split(' '.join(self.spec))
+    # print "CALLING", spec_command
+    return call(spec_command)
+
 
 def Missing (args):
   raise NotImplemented("unknown: %s" % ' '.join(args))
@@ -71,6 +98,7 @@ def Missing (args):
 class Runner (object):
   MAP = {
     'report': WrappedReports
+  , '!': WrappedAlias
   }
   def __init__ (self, spec):
     self.spec = spec
@@ -81,14 +109,10 @@ class Runner (object):
   def main (self, parent, args):
     method = self.MAP.get(self.prefix, Missing)
     print self.prefix, "inner main running", self.command, self.tail
-    print self.prefix, "inner main method", method
-    if not self.prefix.startswith('!'):
-      app = method(self.tail)
-      out = app( )
-      print "ran app and got", app, out
-    else:
-      print "skipping alias", self.spec
-    pass
+
+    app = method(self.tail)
+    out = app( )
+    print "ran app and got", app, out
     
 
 class DoTool (TODOFixARGV):
