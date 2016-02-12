@@ -33,5 +33,5 @@ class ScheduleApp (cli.ConfigApp):
 
 if __name__ == '__main__':
 
-    app = ScheduleApp(sys.argv)
+    app = ScheduleApp(None)
     app( )
