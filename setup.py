@@ -18,6 +18,7 @@ setup(name='oacids',
     packages=find_packages( ),
     include_package_data = True,
     install_requires = [
+      'recurrent',
       'openaps > 0.0.9',
     ],
     dependency_links = [
