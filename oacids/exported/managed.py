@@ -172,7 +172,7 @@ class Configurable (GPropSync):
   @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
                        in_signature='s', out_signature='a{sv}')
   def GetAll(self, interface_name):
-      if interface_name == dbus.PROPERTIES_IFACE:
+      if interface_name in [ dbus.PROPERTIES_IFACE, dbus.INTROSPECTABLE_IFACE ]:
         return { }
       if interface_name == self.OWN_IFACE:
           # props = dict([(prop.name.replace('-', '_'), getattr(self, prop.name.replace('-', '_'))) for prop in self.props])

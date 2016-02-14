@@ -56,7 +56,30 @@ class Trigger (GPropSync):
     now = datetime.datetime.now( )
     print "FIRED", now.isoformat( ), self.when.isoformat( ), self.name, self.path
     self.manager.Trigger("Queue", self.path)
-    self.manager.master.background.Do(self.attrs)
+    self.manager.master.background.Do(self.attrs, ack=self.on_success, error=self.Error)
+  def on_success (self, results):
+    print "RESULTS", results
+    self.Success( )
+  @dbus.service.signal(dbus_interface=OWN_IFACE,
+                       signature='')
+  def Success (self):
+    self.Done( )
+    pass
+  @dbus.service.signal(dbus_interface=OWN_IFACE,
+                       signature='')
+  def Error (self):
+    self.Done( )
+    pass
+  @dbus.service.signal(dbus_interface=OWN_IFACE,
+                       signature='')
+  def Done (self):
+    self.Finish( )
+    pass
+  @dbus.service.signal(dbus_interface=OWN_IFACE,
+                       signature='')
+  def Finish (self):
+    self.Remove( )
+    pass
   @dbus.service.signal(dbus_interface=OWN_IFACE,
                        signature='')
   def Remove (self):
@@ -101,7 +124,8 @@ class Armable (object):
     self.props = props
     new_path = PATH + '/Scheduler/Armed/' + self.hashed
     delay_ms = (self.when - datetime.datetime.now( )).total_seconds( ) * 1000
-    self.remote.bus.add_signal_receiver(self.cleanup, "Fire", dbus_interface=Trigger.OWN_IFACE, bus_name=BUS, path=new_path)
+    self.remote.bus.add_signal_receiver(self.cleanup, "Remove", dbus_interface=Trigger.OWN_IFACE, bus_name=BUS, path=new_path)
+    # self.remote.bus.add_signal_receiver(self.cleanup, "Fire", dbus_interface=Trigger.OWN_IFACE, bus_name=BUS, path=new_path)
     trigger = None
     try:
       trigger = Trigger(new_path, manager, props, self)

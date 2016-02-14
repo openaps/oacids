@@ -34,33 +34,38 @@ class Task (object):
     self.Q = Q
 
   def start (self):
-    self.thread = Thread(target=self.run)
+    self.thread = Thread(target=self.run, args=(self.manager, self.Q))
     self.thread.daemon = True
     self.thread.start( )
     print "started", self.thread
     self.running = True
-  def run (self):
+  def run (self, manager, Q):
     print "running", self, self.running
     while self.running or not self.Q.empty( ):
-      item = self.Q.get( )
+      item, callbacks = self.Q.get( )
+      on_ack, on_error = callbacks
+      print "GOT FROM Q", item
       results = None
       # http://stackoverflow.com/questions/5943249/python-argparse-and-controlling-overriding-the-exit-status-code
       fuzz = dbus.Dictionary(signature="sv")
       fuzz.update(**item)
-      self.manager.Phase('get', fuzz);
+      manager.Phase('get', fuzz);
       try:
         app = DoTool.Make(item)
-        self.manager.Phase('make', fuzz);
+        manager.Phase('make', fuzz);
         print "GOT ITEM", item, app
         results = app( )
-        self.manager.Phase('success', fuzz);
+        manager.Phase('success', fuzz);
+        on_ack(results)
       except (SystemExit), e:
         print "EXCEPTINO!!!!", "argparse fail?"
-        self.manager.Phase('error', fuzz);
+        manager.Phase('error', fuzz);
+        on_error( )
       except (Exception), e:
         print "EXCEPTINO!!!!"
         print e
-        self.manager.Phase('error', fuzz);
+        manager.Phase('error', fuzz);
+        on_error( )
         if e:
           traceback.print_exc(file=sys.stdout)
           # traceback.print_last( )
@@ -95,13 +100,14 @@ class Doable (GPropSync, Manager):
     return results
 
   @dbus.service.method(dbus_interface=OWN_IFACE,
+                       async_callbacks=('ack', 'error'),
                        in_signature='a{sv}', out_signature='s')
-  def Do (self, params):
+  def Do (self, params, ack=None, error=None):
     fuzz = dbus.Dictionary(signature="sv")
     fuzz.update(**params)
     self.Phase('put', fuzz);
     print "DO!", params
-    self.Q.put(params)
+    self.Q.put((params, (ack, error)))
     return "OK"
 
   @dbus.service.method(dbus_interface=OWN_IFACE,
