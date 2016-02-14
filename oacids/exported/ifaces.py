@@ -1,5 +1,6 @@
 
-BUS='org.openaps.oacids'
+# BUS='org.openaps.oacids'
+BUS='org.openaps'
 IFACE='org.openaps.Service'
 
 ObjectManager = 'org.freedesktop.DBus.ObjectManager'

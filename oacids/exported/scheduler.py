@@ -54,7 +54,8 @@ class Trigger (GPropSync):
                        signature='')
   def Fire (self):
     now = datetime.datetime.now( )
-    print "FIRED", now.isoformat( ), self.when.isoformat( ), self.name
+    print "FIRED", now.isoformat( ), self.when.isoformat( ), self.name, self.path
+    self.manager.Trigger("Queue", self.path)
     self.manager.master.background.Do(self.attrs)
   @dbus.service.signal(dbus_interface=OWN_IFACE,
                        signature='')
@@ -89,6 +90,7 @@ class Armable (object):
     print "cleaning up"
     self.manager.schedules.pop(self)
     if self.trigger:
+      self.manager.Trigger("Cleanup", self.trigger.path)
       self.manager.InterfacesRemoved(self.trigger.path, { Trigger.OWN_IFACE: self.props })
       self.trigger.remove_from_connection( )
 
@@ -104,10 +106,12 @@ class Armable (object):
     try:
       trigger = Trigger(new_path, manager, props, self)
       if trigger:
+        self.manager.Trigger("Arming", trigger.path)
         self.trigger = trigger
         print "DELAYING", delay_ms
         gobject.timeout_add(delay_ms, trigger.Fire)
         manager.InterfacesAdded(trigger.path, { Trigger.OWN_IFACE: props })
+        self.manager.Trigger("Armed", trigger.path)
     except:
       print "already exited?"
       raise
@@ -131,6 +135,10 @@ class Scheduler (GPropSync, Manager):
     self.TaskWithin = (self.master.heartbeat.interval * self.MaxTasksAhead) / 1000
     self.init_managed( )
 
+  @dbus.service.signal(dbus_interface=OWN_IFACE,
+                       signature='so')
+  def Trigger (self, status, path):
+    pass
 
   def Scan (self):
     candidates = self.Poll(within_seconds=self.TaskWithin)
@@ -194,7 +202,7 @@ class Scheduler (GPropSync, Manager):
   def init_managed (self):
     self.since = utils.datetime.datetime.fromtimestamp(self.master.heartbeat.started_at)
     # self.add_signal_handler("heartbeat", self.Scan, dbus_interface=OPENAPS_IFACE + ".Heartbeat")
-    self.bus.add_signal_receiver(self.Scan, "heartbeat", dbus_interface=OPENAPS_IFACE + ".Heartbeat", bus_name=BUS, path=self.master.heartbeat.path)
+    self.bus.add_signal_receiver(self.Scan, "Heartbeat", dbus_interface=OPENAPS_IFACE + ".Heartbeat", bus_name=BUS, path=self.master.heartbeat.path)
 
     # self.schedules = defaultdict(dict)
     self.schedules = { }

@@ -8,7 +8,8 @@ from datetime import datetime
 from oacids.helpers.dbus_props import GPropSync, Manager, WithProperties
 from ifaces import BUS, IFACE, PATH, INTROSPECTABLE_IFACE, TRIGGER_IFACE, OPENAPS_IFACE
 
-class Heartbeat (GPropSync, Manager):
+# class Heartbeat (GPropSync, Manager):
+class Heartbeat (GPropSync):
   OWN_IFACE = OPENAPS_IFACE + '.Heartbeat'
   active = False
   sleep_interval = 1000
@@ -19,7 +20,7 @@ class Heartbeat (GPropSync, Manager):
     self.master = ctrl
     self.started_at = time.time( )
     self.now = datetime.fromtimestamp(self.started_at)
-    Manager.__init__(self, self.path, bus)
+    GPropSync.__init__(self, bus, self.path)
     self.handle = None
     self.Start( )
 
@@ -27,7 +28,7 @@ class Heartbeat (GPropSync, Manager):
     'interval': 'u'
   , 'Ticking': 'b'
   , 'StartedAt': 'd'
-  , 'uptime': 'd'
+  , 'Uptime': 'd'
   }
 
   @gobject.property(type=int, default=1000)
@@ -43,7 +44,7 @@ class Heartbeat (GPropSync, Manager):
     return self.started_at
 
   @gobject.property(type=float)
-  def uptime (self):
+  def Uptime (self):
     return time.time( ) - self.started_at
 
 
@@ -66,9 +67,10 @@ class Heartbeat (GPropSync, Manager):
 
   @dbus.service.signal(dbus_interface=OWN_IFACE,
                        signature='')
-  def heartbeat (self):
+  def Heartbeat (self):
+      print "scanning"
       pass
-      # print "Heartbeat Still alive at", self.uptime
+      # print "Heartbeat Still alive at", self.Uptime
   def _tick (self):
-      self.heartbeat( )
+      self.Heartbeat( )
       return self.Ticking

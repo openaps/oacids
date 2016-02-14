@@ -62,7 +62,7 @@ class Timer (service.NaiveService):
         proxy = bus.get_object(BUS, PATH)
         app = dbus.Interface (proxy, IFACE)
         print app
-        app.operate(op)
+        app.Operate(op)
         # app.Howdy( )
         return app
       else:
@@ -76,6 +76,8 @@ class Timer (service.NaiveService):
 
 
     @dbus.service.method(dbus_interface=IFACE, in_signature='a{sv}', out_signature='v')
+    def Operate(self, kwds):
+      return self.operate(kwds)
     def operate(self, kwds):
       print "OPERATE", kwds
       if 'ini_home' in kwds:

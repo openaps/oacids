@@ -69,6 +69,7 @@ class NaiveService (ScheduleManager, GPropSync):
       'fuel': 'i'
     , 'blah': 's'
     , 'name': 's'
+    , 'Name': 's'
     , 'mode': 's'
     , 'status': 'u'
     , 'ini_home': 's'
@@ -87,6 +88,9 @@ class NaiveService (ScheduleManager, GPropSync):
 
     # describe_property(dbus_interface=IFACE, type_signature='s') ()
     name = gobject.property(type=str)
+    @gobject.property(type=str)
+    def Name (self):
+      return self.name
     @gobject.property(type=str)
     def ini_home (self):
       return self.homedir
@@ -119,6 +123,17 @@ class NaiveService (ScheduleManager, GPropSync):
         self.scheduler = scheduler.Scheduler(self.bus, self)
         # self.connect("notify::ini-home", self.on_change_home)
 
+    def get_all_managed (self):
+      things = filter(lambda x: x, [self.background, self.scheduler, self.heartbeat, self.openaps])
+      paths = dict( )
+      # for thing in self.schedules:
+      for thing in things:
+        print thing
+        spec = { thing.OWN_IFACE:  dict(**thing.GetAll(thing.OWN_IFACE))
+               , dbus.INTROSPECTABLE_IFACE:  dict( )
+               , dbus.PROPERTIES_IFACE:  dict( ) }
+        paths[thing.path] = spec
+      return paths
 
     @dbus.service.method(dbus_interface=IFACE,
                          in_signature='i',
@@ -149,7 +164,7 @@ class NaiveService (ScheduleManager, GPropSync):
     def Start (self):
       print "Howdy!"
       return "OK"
-    @dbus.service.signal(dbus_interface=dbus.PROPERTIES_IFACE,
+    @dbus.service.signal(dbus_interface=OWN_IFACE,
                          signature='')
     def Quit (self):
       gobject.timeout_add(2, self.loop.quit)

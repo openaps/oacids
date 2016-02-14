@@ -182,6 +182,7 @@ class Configurable (GPropSync):
             fields = self.item.extra.fields
           return dict(name=self.name, **fields)
       else:
+          return { }
           raise dbus.exceptions.DBusException(
               'com.example.UnknownInterface',
               'The Foo object does not implement the %s interface'

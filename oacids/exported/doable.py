@@ -2,6 +2,7 @@
 from oacids.helpers.dbus_props import GPropSync, Manager, WithProperties
 import dbus.service
 from gi.repository import GObject as gobject
+import dbus
 import types
 from ifaces import IFACE, PATH, OPENAPS_IFACE
 
@@ -44,15 +45,22 @@ class Task (object):
       item = self.Q.get( )
       results = None
       # http://stackoverflow.com/questions/5943249/python-argparse-and-controlling-overriding-the-exit-status-code
+      fuzz = dbus.Dictionary(signature="sv")
+      fuzz.update(**item)
+      self.manager.Phase('get', fuzz);
       try:
         app = DoTool.Make(item)
+        self.manager.Phase('make', fuzz);
         print "GOT ITEM", item, app
         results = app( )
+        self.manager.Phase('success', fuzz);
       except (SystemExit), e:
         print "EXCEPTINO!!!!", "argparse fail?"
+        self.manager.Phase('error', fuzz);
       except (Exception), e:
         print "EXCEPTINO!!!!"
         print e
+        self.manager.Phase('error', fuzz);
         if e:
           traceback.print_exc(file=sys.stdout)
           # traceback.print_last( )
@@ -89,6 +97,9 @@ class Doable (GPropSync, Manager):
   @dbus.service.method(dbus_interface=OWN_IFACE,
                        in_signature='a{sv}', out_signature='s')
   def Do (self, params):
+    fuzz = dbus.Dictionary(signature="sv")
+    fuzz.update(**params)
+    self.Phase('put', fuzz);
     print "DO!", params
     self.Q.put(params)
     return "OK"
@@ -100,6 +111,10 @@ class Doable (GPropSync, Manager):
     self.background.stop( )
     return "OK"
 
+  @dbus.service.signal(dbus_interface=OWN_IFACE,
+                       signature='sa{sv}')
+  def Phase (self, status, props):
+    pass
   @dbus.service.signal(dbus_interface=OWN_IFACE,
                        signature='')
   def FOOBAR (self):
