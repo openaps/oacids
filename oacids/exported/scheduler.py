@@ -56,7 +56,9 @@ class Trigger (GPropSync):
     now = datetime.datetime.now( )
     print "FIRED", now.isoformat( ), self.when.isoformat( ), self.name, self.path
     self.manager.Trigger("Queue", self.path)
-    self.manager.master.background.Do(self.attrs, ack=self.on_success, error=self.Error)
+    self.manager.master.background.Do(self.attrs, ack=self.on_success, error=self.on_error)
+  def on_error (self):
+    self.Error( )
   def on_success (self, results):
     print "RESULTS", results
     self.Success( )
