@@ -22,6 +22,7 @@ class Trigger (GPropSync):
   , 'phases': 's'
   , 'rrule': 's'
   , 'id': 's'
+  , 'Status': 's'
   , 'countdown': 'd'
   }
   name = gobject.property(type=str)
@@ -29,12 +30,18 @@ class Trigger (GPropSync):
   obj = gobject.property(type=str)
   phases = gobject.property(type=str)
   rrule = gobject.property(type=str)
+  trigger = gobject.property(type=str)
+  _states = ['Armed', 'Running', 'Done', 'Gone' ]
+  _error = [ ]
   @gobject.property(type=float)
   def countdown (self):
     return (self.when - datetime.datetime.now( )).total_seconds( )
   @gobject.property(type=str)
   def id (self):
     return self.armed.hashed
+  @gobject.property(type=str)
+  def Status (self):
+    return self._states[self._status]
   def __init__ (self, path, manager=None, props=None, armed=None):
     self.manager = manager
     bus = manager.bus
@@ -42,49 +49,83 @@ class Trigger (GPropSync):
     self.path = path
     self.when = armed.when
     self.armed = armed
+    self._status = 0
     GPropSync.__init__(self, self.bus.get_connection( ), path)
     # WithProperties.__init__(self, self.bus.get_connection( ), path)
     self.attrs = props
+    self.attrs['trigger'] = self.armed.hashed
     if props:
       for key in props:
         self.set_property(key, props[key])
     self.sync_all_props( )
-
+  @dbus.service.signal(dbus_interface=OWN_IFACE,
+                       signature='')
+  def Armed (self):
+    pass
+  @dbus.service.signal(dbus_interface=OWN_IFACE,
+                       signature='')
+  def Running (self):
+    pass
   @dbus.service.signal(dbus_interface=OWN_IFACE,
                        signature='')
   def Fire (self):
     now = datetime.datetime.now( )
+    old = self.Status
+    self._status += 1
+    new = self.Status
+    self.PropertiesChanged(self.OWN_IFACE, dict(Status=new), dict(Status=old))
     print "FIRED", now.isoformat( ), self.when.isoformat( ), self.name, self.path
     self.manager.Trigger("Queue", self.path)
     self.manager.master.background.Do(self.attrs, ack=self.on_success, error=self.on_error)
+    # self._status += 1
   def on_error (self):
+    print "PHASED ON ERROR"
+    # self.Done( )
     self.Error( )
+    pass 
   def on_success (self, results):
-    print "RESULTS", results
+    print "RESULTS SUCCESS PHASE", results
     self.Success( )
-  @dbus.service.signal(dbus_interface=OWN_IFACE,
-                       signature='')
+  @dbus.service.signal(dbus_interface=OWN_IFACE, signature='')
   def Success (self):
-    self.Done( )
+    self.PropertiesChanged(self.OWN_IFACE, dict(Status='Success'), dict(Status='Fired'))
+    # self.Done( )
     pass
-  @dbus.service.signal(dbus_interface=OWN_IFACE,
-                       signature='')
+  @dbus.service.signal(dbus_interface=OWN_IFACE, signature='')
   def Error (self):
-    self.Done( )
+    self.PropertiesChanged(self.OWN_IFACE, dict(Status='Error'), dict(Status='Fired'))
+    # self.Done( )
     pass
-  @dbus.service.signal(dbus_interface=OWN_IFACE,
-                       signature='')
+  @dbus.service.signal(dbus_interface=OWN_IFACE, signature='')
   def Done (self):
-    self.Finish( )
+    old_status = self.Status
+    # self._status += 1
+    self.PropertiesChanged(self.OWN_IFACE, dict(Status='Done'), dict(Status=old_status))
+    # self.Finish( )
     pass
-  @dbus.service.signal(dbus_interface=OWN_IFACE,
-                       signature='')
+  @dbus.service.signal(dbus_interface=OWN_IFACE, signature='')
   def Finish (self):
-    self.Remove( )
+    self.PropertiesChanged(self.OWN_IFACE, dict(Status='Finish'), dict(Status='Done'))
+    # self.Remove( )
     pass
-  @dbus.service.signal(dbus_interface=OWN_IFACE,
-                       signature='')
+  def phase (self, phase):
+    phases = {
+      'Running': self.Running
+    , 'Done': self.Done
+    , 'Error': self.Error
+    , 'Finish': self.Finish
+    , 'Success': self.Success
+    , 'Remove': self.Remove
+    }
+    func = phases.get(phase, None)
+    print "PHASE", phase, func, self.id
+    if func:
+      func( )
+  @dbus.service.signal(dbus_interface=OWN_IFACE, signature='')
   def Remove (self):
+    self._status = 3
+    self.PropertiesChanged(self.OWN_IFACE, dict(Status='Remove'), dict())
+    print "GOT REMOVE SIGNAL", self
     pass
     
 
@@ -117,9 +158,13 @@ class Armable (object):
     if self.trigger:
       self.manager.Trigger("Cleanup", self.trigger.path)
       self.manager.InterfacesRemoved(self.trigger.path, { Trigger.OWN_IFACE: self.props })
+      self.remote.bus.remove_signal_receiver(self.cleanup, "Remove", dbus_interface=Trigger.OWN_IFACE, bus_name=BUS, path=self.trigger.path)
       self.trigger.remove_from_connection( )
 
 
+  def update_phase (self, signal, props):
+    if props['expected'] == self.props['expected']:
+      print "UPDATE PHASE", signal, props
   def arm (self, manager):
     self.manager = manager
     props = dict(obj=self.remote.path, name=self.remote.item.name, expected=self.when.isoformat( ), **self.remote.item.fields)
@@ -127,11 +172,12 @@ class Armable (object):
     new_path = PATH + '/Scheduler/Armed/' + self.hashed
     delay_ms = (self.when - datetime.datetime.now( )).total_seconds( ) * 1000
     self.remote.bus.add_signal_receiver(self.cleanup, "Remove", dbus_interface=Trigger.OWN_IFACE, bus_name=BUS, path=new_path)
-    # self.remote.bus.add_signal_receiver(self.cleanup, "Fire", dbus_interface=Trigger.OWN_IFACE, bus_name=BUS, path=new_path)
+    # manager.bus.add_signal_receiver(self.attrs, ack=self.on_success, error=self.on_error)
     trigger = None
     try:
       trigger = Trigger(new_path, manager, props, self)
       if trigger:
+        trigger.Armed( )
         self.manager.Trigger("Arming", trigger.path)
         self.trigger = trigger
         print "DELAYING", delay_ms
@@ -175,18 +221,24 @@ class Scheduler (GPropSync, Manager):
       
       is_armed = False
       other = self.schedules.get(candidate, None)
+      found = 0
+      added = 0
       if other is None:
         try:
           self.schedules[candidate] = candidate.arm(self)
+          added += 1
           is_armed = True
         except Exception, e:
           print "what happened?", e
           pass
       else:
+        found += 1
         pass
         # print "already scheduled", candidate
       txt = { True: "ARMED", False: "skipped" }
-      print txt.get(is_armed), candidate.when, candidate.remote.item.name, candidate.remote.path
+      # print txt.get(is_armed), candidate.when, candidate.remote.item.name, candidate.remote.path
+      summary = """{dt}: {num_schedules} managed, added {added} new, skipped {found} duplicate upcoming"""
+      print summary.format(dt=datetime.datetime.now( ).isoformat( ), num_schedules=len(self.schedules), added=added, found=found)
 
     return 
 
@@ -218,6 +270,10 @@ class Scheduler (GPropSync, Manager):
     return results
     pass
 
+  def GetTriggerById (self, hashed):
+    for key, trigger in self.schedules.items( ):
+      if trigger.id == hashed:
+        return trigger
   def enqueue (self, upcoming, event):
     name = event.item.name
     obj_path = event.path

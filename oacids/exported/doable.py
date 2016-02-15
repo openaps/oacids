@@ -4,7 +4,7 @@ import dbus.service
 from gi.repository import GObject as gobject
 import dbus
 import types
-from ifaces import IFACE, PATH, OPENAPS_IFACE
+from ifaces import IFACE, PATH, OPENAPS_IFACE, BUS, TRIGGER_IFACE
 
 
 from oacids.schedules import utils
@@ -26,6 +26,23 @@ import sys
 
 DoTool = do.DoTool
 
+def get_trigger_for (path, scheduler):
+  if path:
+    return scheduler.GetTriggerById(path)
+    proxy = bus.get_object(BUS, path)
+    iface = dbus.Interface(proxy, TRIGGER_IFACE)
+    return iface
+def update_phase (trigger, phase):
+  _states = ['Armed', 'Running', 'Done', 'Gone' ]
+  # Armed, Fire
+  # Running
+  # Success, Error, Done, Remove
+  # print trigger
+  if trigger:
+    trigger.phase(phase)
+    # if func: print "PHASING", phase func( )
+    pass
+  pass
 
 class Task (object):
   def __init__ (self, manager, Q):
@@ -46,32 +63,40 @@ class Task (object):
       on_ack, on_error = callbacks
       print "GOT FROM Q", item
       results = None
+      # print "ALL SCHEDULED", manager.master.scheduler.schedules
+      trigger = get_trigger_for(item.get('trigger', None), manager.master.scheduler)
+      print "FROM TRIGGER", trigger
       # http://stackoverflow.com/questions/5943249/python-argparse-and-controlling-overriding-the-exit-status-code
-      fuzz = dbus.Dictionary(signature="sv")
-      fuzz.update(**item)
+      fuzz = dbus.Dictionary(item, signature="sv")
+      # fuzz.update(**item)
       manager.Phase('get', fuzz);
+      update_phase(trigger, 'Running')
       try:
         app = DoTool.Make(item)
         manager.Phase('make', fuzz);
         print "GOT ITEM", item, app
         results = app( )
+        update_phase(trigger, 'Success')
         manager.Phase('success', fuzz);
         on_ack(results)
-      except (SystemExit), e:
-        print "EXCEPTINO!!!!", "argparse fail?"
-        manager.Phase('error', fuzz);
-        on_error( )
-      except (Exception), e:
+
+      except (Exception, SystemExit), e:
         print "EXCEPTINO!!!!"
         print e
         manager.Phase('error', fuzz);
+        update_phase(trigger, 'Error')
+        time.sleep(0.150)
         on_error( )
         if e:
           traceback.print_exc(file=sys.stdout)
           # traceback.print_last( )
+      finally:
 
-      print "DONE", results
-      self.Q.task_done( )
+        # update_phase(trigger, 'Done')
+        # update_phase(trigger, 'Finish')
+        update_phase(trigger, 'Remove')
+        print "DONE", results
+        self.Q.task_done( )
 
   def stop (self):
     self.running = False 
