@@ -45,21 +45,22 @@ def update_phase (trigger, phase):
   pass
 
 class Task (object):
-  def __init__ (self, manager, Q):
-    self.manager = manager
+  # def __init__ (self, manager, Q):
+  def __init__ (self):
+    # self.manager = manager
     self.running = True
-    self.Q = Q
+    # self.Q = Q
 
-  def start (self):
-    self.thread = Thread(target=self.run, args=(self.manager, self.Q))
+  def start (self, manager, Q):
+    self.thread = Thread(target=self.run, args=(manager, Q))
     self.thread.daemon = True
     self.thread.start( )
     print "started", self.thread
     self.running = True
   def run (self, manager, Q):
     print "running", self, self.running
-    while self.running or not self.Q.empty( ):
-      item, callbacks = self.Q.get( )
+    while self.running or not Q.empty( ):
+      item, callbacks = Q.get( )
       on_ack, on_error = callbacks
       print "GOT FROM Q", item
       results = None
@@ -96,7 +97,7 @@ class Task (object):
         # update_phase(trigger, 'Finish')
         update_phase(trigger, 'Remove')
         print "DONE", results
-        self.Q.task_done( )
+        Q.task_done( )
 
   def stop (self):
     self.running = False 
@@ -117,8 +118,9 @@ class Doable (GPropSync, Manager):
     self.init_managed( )
   def init_managed (self):
     self.Q = Queue(self.MaxTasksQueue)
-    self.background = Task(self, self.Q)
-    self.background.start( )
+    # self.background = Task(self, self.Q)
+    self.background = Task( )
+    self.background.start(self, self.Q)
     self.tasks = dict( )
   def get_all_managed (self):
     results = dict( )

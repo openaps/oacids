@@ -70,7 +70,6 @@ class Heartbeat (GPropSync):
   def Heartbeat (self):
       # print "scanning"
       pass
-      # print "Heartbeat Still alive at", self.Uptime
   def _tick (self):
       self.Heartbeat( )
       return self.Ticking

@@ -12,6 +12,7 @@ import recurrent
 
 from collections import deque, defaultdict
 import hashlib
+import threading
 
 class Trigger (GPropSync):
   OWN_IFACE = IFACE + '.Trigger'
@@ -237,8 +238,8 @@ class Scheduler (GPropSync, Manager):
         # print "already scheduled", candidate
       txt = { True: "ARMED", False: "skipped" }
       # print txt.get(is_armed), candidate.when, candidate.remote.item.name, candidate.remote.path
-      summary = """{dt}: {num_schedules} managed, added {added} new, skipped {found} duplicate upcoming"""
-      print summary.format(dt=datetime.datetime.now( ).isoformat( ), num_schedules=len(self.schedules), added=added, found=found)
+    summary = """{dt}: tracking {num_schedules} managed, added {added} new, skipped {found} upcoming duplicates"""
+    print summary.format(thread=threading.currentThread( ).ident, dt=datetime.datetime.now( ).isoformat( ), num_schedules=len(self.schedules), added=added, found=found)
 
     return 
 
@@ -284,6 +285,7 @@ class Scheduler (GPropSync, Manager):
   def init_managed (self):
     self.since = utils.datetime.datetime.fromtimestamp(self.master.heartbeat.started_at)
     # self.add_signal_handler("heartbeat", self.Scan, dbus_interface=OPENAPS_IFACE + ".Heartbeat")
+    print "SUBSCRIBING to Heartbeat"
     self.bus.add_signal_receiver(self.Scan, "Heartbeat", dbus_interface=OPENAPS_IFACE + ".Heartbeat", bus_name=BUS, path=self.master.heartbeat.path)
 
     # self.schedules = defaultdict(dict)
