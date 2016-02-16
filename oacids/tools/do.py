@@ -64,7 +64,7 @@ class WrappedReports (TODOFixARGV):
     # print "WRAPPED", args
     app = self.actions.selected(args)
     output = app(args, self)
-    print "OUTPUT:"
+    print "OUTPUT:", app
     print output
 
 class WrappedAlias (object):
@@ -87,9 +87,17 @@ class WrappedAlias (object):
     # print "ALIAS inner WRAPPED", self.spec
 
 
+
     spec_command = shlex.split(' '.join(self.spec))
-    # print "CALLING", spec_command
+    print "CONSIDERING ALIAS", spec_command
+    if spec_command[0].startswith('!'):
+      spec_command = spec_command[1:]
+    print "RUNNING ALIAS", spec_command
     return call(spec_command)
+    code = call(spec_command)
+    if code is 0:
+      return None
+    return code
 
 
 def Missing (args):
@@ -113,6 +121,8 @@ class Runner (object):
     app = method(self.tail)
     out = app( )
     print "ran app and got", app, out
+    if out not in [ None, 0 ]:
+      raise Exception("BAD EXIT [%s], spec: %s" % (out, self.spec.fields))
     
 
 class DoTool (TODOFixARGV):

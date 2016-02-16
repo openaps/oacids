@@ -80,6 +80,8 @@ class Task (object):
         update_phase(trigger, 'Success')
         manager.Phase('success', fuzz);
         on_ack(results)
+        # bad
+        time.sleep(0.150)
 
       except (Exception, SystemExit), e:
         print "EXCEPTINO!!!!"

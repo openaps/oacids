@@ -32,7 +32,7 @@ class Trigger (GPropSync):
   phases = gobject.property(type=str)
   rrule = gobject.property(type=str)
   trigger = gobject.property(type=str)
-  _states = ['Armed', 'Running', 'Done', 'Gone' ]
+  _states = ['Armed', 'Running', 'Success', 'Error', 'Done', 'Gone' ]
   _error = [ ]
   @gobject.property(type=float)
   def countdown (self):
@@ -42,6 +42,7 @@ class Trigger (GPropSync):
     return self.armed.hashed
   @gobject.property(type=str)
   def Status (self):
+    print "STATUS", self.id, self._states[self._status]
     return self._states[self._status]
   def __init__ (self, path, manager=None, props=None, armed=None):
     self.manager = manager
@@ -66,13 +67,14 @@ class Trigger (GPropSync):
   @dbus.service.signal(dbus_interface=OWN_IFACE,
                        signature='')
   def Running (self):
+    self._status = 1
     pass
   @dbus.service.signal(dbus_interface=OWN_IFACE,
                        signature='')
   def Fire (self):
     now = datetime.datetime.now( )
     old = self.Status
-    self._status += 1
+    self._status = 1
     new = self.Status
     self.PropertiesChanged(self.OWN_IFACE, dict(Status=new), dict(Status=old))
     print "FIRED", now.isoformat( ), self.when.isoformat( ), self.name, self.path
@@ -86,14 +88,19 @@ class Trigger (GPropSync):
     pass 
   def on_success (self, results):
     print "RESULTS SUCCESS PHASE", results
-    self.Success( )
+    self._status = 2
+    # self.Success( )
   @dbus.service.signal(dbus_interface=OWN_IFACE, signature='')
   def Success (self):
     self.PropertiesChanged(self.OWN_IFACE, dict(Status='Success'), dict(Status='Fired'))
+    old_status = self.Status
+    self._status = 2
+    self.PropertiesChanged(self.OWN_IFACE, dict(Status='Success'), dict(Status=old_status))
     # self.Done( )
     pass
   @dbus.service.signal(dbus_interface=OWN_IFACE, signature='')
   def Error (self):
+    self._status = 3
     self.PropertiesChanged(self.OWN_IFACE, dict(Status='Error'), dict(Status='Fired'))
     # self.Done( )
     pass
@@ -101,6 +108,7 @@ class Trigger (GPropSync):
   def Done (self):
     old_status = self.Status
     # self._status += 1
+    self._status = 4
     self.PropertiesChanged(self.OWN_IFACE, dict(Status='Done'), dict(Status=old_status))
     # self.Finish( )
     pass
@@ -124,7 +132,7 @@ class Trigger (GPropSync):
       func( )
   @dbus.service.signal(dbus_interface=OWN_IFACE, signature='')
   def Remove (self):
-    self._status = 3
+    self._status = 5
     self.PropertiesChanged(self.OWN_IFACE, dict(Status='Remove'), dict())
     print "GOT REMOVE SIGNAL", self
     pass
@@ -157,10 +165,12 @@ class Armable (object):
     print "cleaning up"
     self.manager.schedules.pop(self)
     if self.trigger:
-      self.manager.Trigger("Cleanup", self.trigger.path)
-      self.manager.InterfacesRemoved(self.trigger.path, { Trigger.OWN_IFACE: self.props })
-      self.remote.bus.remove_signal_receiver(self.cleanup, "Remove", dbus_interface=Trigger.OWN_IFACE, bus_name=BUS, path=self.trigger.path)
-      self.trigger.remove_from_connection( )
+      def cleaned ( ):
+        self.manager.Trigger("Cleanup", self.trigger.path)
+        self.manager.InterfacesRemoved(self.trigger.path, { Trigger.OWN_IFACE: self.props })
+        self.remote.bus.remove_signal_receiver(self.cleanup, "Remove", dbus_interface=Trigger.OWN_IFACE, bus_name=BUS, path=self.trigger.path)
+        self.trigger.remove_from_connection( )
+      gobject.timeout_add(500, cleaned)
 
 
   def update_phase (self, signal, props):
