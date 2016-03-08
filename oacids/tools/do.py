@@ -155,9 +155,9 @@ class DoTool (TODOFixARGV):
       runner = Runner(current)
       results = runner.main(self, args)
       # help(current)
-    sleepr = random.randrange(100.0, 4000.0) / 1000.0
-    print "sleeping", sleepr
-    time.sleep(sleepr)
+    # sleepr = random.randrange(100.0, 4000.0) / 1000.0
+    # print "sleeping", sleepr
+    # time.sleep(sleepr)
     return "HA"
 
 if __name__ == '__main__':

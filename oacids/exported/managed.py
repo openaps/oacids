@@ -43,18 +43,18 @@ class Instance (GPropSync, Manager, openaps.cli.ConfigApp):
   def get_devices (self, announce=False):
     specs = [ ]
     for device in self.devices:
-      print device.OWN_IFACE
-      print device.item.fields
+      # print device.OWN_IFACE
+      # print device.item.fields
       spec = { device.OWN_IFACE: dict(name=device.item.name, **device.item.fields) }
       specs.append({ device.path: [ spec ] })
-    print "DEVICES DBUS SPEC", specs
+    # print "DEVICES DBUS SPEC", specs
     return specs
   def lookup_devices (self, announce=False):
     devices = Devices.FromParent(self)
     for device in devices:
       if announce:
-        print device.OWN_IFACE
-        print device.item.fields
+        # print device.OWN_IFACE
+        # print device.item.fields
         spec = { device.OWN_IFACE: dict(name=device.item.name, **device.item.fields) }
         self.InterfacesAdded(device.path, spec)
     return devices
@@ -65,20 +65,20 @@ class Instance (GPropSync, Manager, openaps.cli.ConfigApp):
     ifaces = dict( )
     paths = dict( )
     for thing in things:
-      print thing.path
-      print thing.OWN_IFACE
-      print thing.item.fields
+      # print thing.path
+      # print thing.OWN_IFACE
+      # print thing.item.fields
       spec = { thing.OWN_IFACE:  dict(name=thing.item.name, **thing.item.fields) }
       paths[thing.path] = spec
       specs.append([ thing.path,  spec  ])
-    print "DBUS Managed SPEC", specs
+    # print "DBUS Managed SPEC", specs
     return paths
     return paths.keys( )
   def get_reports (self, announce=False):
     specs = [ ]
     for report in self.reports:
-      print report.OWN_IFACE
-      print report.item.fields
+      # print report.OWN_IFACE
+      # print report.item.fields
       spec = { report.OWN_IFACE: dict(name=report.item.name, **report.item.fields) }
       specs.append({ report.path: [ spec ] })
     print "REPORTS DBUS SPEC", specs
@@ -141,8 +141,8 @@ class Configurable (GPropSync):
     reports = Klass.FromParent(parent)
     for report in reports:
       if announce:
-        print report.OWN_IFACE
-        print report.item.fields
+        # print report.OWN_IFACE
+        # print report.item.fields
         fields = report.item.fields
         if Klass.isExtra:
           fields = report.item.extra.fields
@@ -223,13 +223,18 @@ def configurable_entries ( ):
     mods[entry.name] = MakeManaged(mod, entry)
   return mods
 
+def _Version (self):
+  print "Howdy!", openaps.__version__
+  return openaps.__version__
 def MakeManaged (mod, entry):
   title_name = entry.name.title( )
   iface_name = OPENAPS_IFACE + '.' + title_name
   title_item = mod.Exported.Configurable.prefix.title( )
+  name = mod.Exported.Configurable.__name__
+  print "exporting iface", iface_name
 
   class ManagedObject (Configurable):
-    __name__ = mod.Exported.Configurable.__name__
+    __name__ = name
     OWN_IFACE = iface_name
     PATH_SPEC = PATH + '/Instance/' + title_item + '%s'
     core = mod
@@ -237,13 +242,27 @@ def MakeManaged (mod, entry):
 
     @classmethod
     def GetMap (Klass, parent):
-      devices = mod.Exported.get_map(parent.config)
+      devices = Klass.core.Exported.get_map(parent.config)
       return devices
 
-    @dbus.service.method(dbus_interface=OWN_IFACE,
+    @dbus.service.method(dbus_interface=iface_name,
                          in_signature='', out_signature='s')
     def Version (self):
       print "Howdy!", openaps.__version__
       return openaps.__version__
     pass
+
+  known = 'oacids.exported.managed.ManagedObject'
+  goodkey = 'oacids.exported.managed.' + name
+  # newkey = ManagedObject.__class__.__module__ + '.' + name
+  # oldkey = ManagedObject.__class__.__module__ + '.' + ManagedObject.__class__.__name__
+  ManagedObject.__name__ = name
+
+  # print ManagedObject._dbus_class_table[known]
+  # XXX: blarg, issues everywhere I look
+  methods = ManagedObject._dbus_class_table.get(goodkey, { })
+  impl = methods.get(iface_name, ManagedObject._dbus_class_table[known])
+
+  ManagedObject._dbus_class_table[goodkey] = impl
+
   return ManagedObject

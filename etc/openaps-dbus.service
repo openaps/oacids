@@ -1,3 +1,4 @@
 [D-BUS Service]
 Name=org.openaps
 Exec="/home/bewest/src/openaps/openaps-appliance/bin/openaps-dbus"
+User="bewest"

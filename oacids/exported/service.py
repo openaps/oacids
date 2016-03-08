@@ -18,7 +18,7 @@ class Trigger (GPropSync):
   }
   name = gobject.property(type=str)
   def __init__ (self, path, bus=None, props=None):
-    self.bus = bus or dbus.SessionBus( )
+    self.bus = bus or dbus.SystemBus( )
     self.path = path
     WithProperties.__init__(self, self.bus.get_connection( ), path)
     if props:
@@ -38,7 +38,9 @@ class ScheduleManager (Manager):
     self.path = path
     Manager.__init__(self, path, bus)
   def init_managed (self):
+    return
     self.schedules = [ ]
+  """
   def get_all_managed (self):
     paths = dict( )
     for thing in self.schedules:
@@ -48,7 +50,6 @@ class ScheduleManager (Manager):
     return paths
     managed = self.schedules
     return managed
-  """
   @dbus.service.method(dbus_interface=IFACE,
                        in_signature='a{sv}', out_signature='')
                        # , async_callbacks=('ack', 'error'))
@@ -111,7 +112,7 @@ class NaiveService (ScheduleManager, GPropSync):
       self.homedir = directory
     def __init__ (self, loop, bus=None, path=PATH):
         self.loop = loop
-        self.bus = bus or dbus.SessionBus( )
+        self.bus = bus or dbus.SystemBus( )
         self.path = path
         request = self.bus.request_name(BUS, dbus.bus.NAME_FLAG_DO_NOT_QUEUE)
         self.running = False
@@ -132,6 +133,7 @@ class NaiveService (ScheduleManager, GPropSync):
         spec = { thing.OWN_IFACE:  dict(**thing.GetAll(thing.OWN_IFACE))
                , dbus.INTROSPECTABLE_IFACE:  dict( )
                , dbus.PROPERTIES_IFACE:  dict( ) }
+        #if hasattr(thing, 'GetManagedObjects'): spec['org.freedesktop.DBus.ObjectManager']
         paths[thing.path] = spec
       return paths
 

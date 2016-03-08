@@ -55,7 +55,7 @@ class Timer (service.NaiveService):
       dbus.mainloop.glib.threads_init( )
 
       print "STarting", sys.argv
-      bus = dbus.SessionBus( )
+      bus = dbus.SystemBus( )
       op = make_args_op(args)
       if args.quit or is_running(bus, BUS):
         print "Already running"

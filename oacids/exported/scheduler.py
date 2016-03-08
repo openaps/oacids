@@ -225,6 +225,8 @@ class Scheduler (GPropSync, Manager):
 
   def Scan (self):
     candidates = self.Poll(within_seconds=self.TaskWithin)
+    found = 0
+    added = 0
     for candidate in candidates:
       # self.enqueue(candidate)
       # print candidate
@@ -232,8 +234,6 @@ class Scheduler (GPropSync, Manager):
       
       is_armed = False
       other = self.schedules.get(candidate, None)
-      found = 0
-      added = 0
       if other is None:
         try:
           self.schedules[candidate] = candidate.arm(self)
@@ -303,7 +303,8 @@ class Scheduler (GPropSync, Manager):
   def get_all_managed (self):
     paths = dict( )
     for thing in self.schedules:
-      print thing
+      # print thing, thing.trigger.OWN_IFACE
+      # print thing.trigger.OWN_IFACE, thing.trigger
       spec = { thing.trigger.OWN_IFACE:  dict(**thing.trigger.GetAll(thing.trigger.OWN_IFACE)) }
       paths[thing.trigger.path] = spec
     return paths

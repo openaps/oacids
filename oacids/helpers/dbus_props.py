@@ -139,12 +139,12 @@ class GPropSync (WithProperties):
 
     @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE, in_signature='ss', out_signature='v')
     def Get(self, interface_name, property_name):
-        return self.GetAll(interface_name)[str(property_name)]
+        return self.GetAll(interface_name).get(str(property_name), None)
 
     @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
                          in_signature='s', out_signature='a{sv}')
     def GetAll(self, interface_name):
-        if interface_name in [ dbus.PROPERTIES_IFACE, dbus.INTROSPECTABLE_IFACE ]:
+        if interface_name in [ dbus.PROPERTIES_IFACE, dbus.INTROSPECTABLE_IFACE, ObjectManager ]:
           return { }
         if interface_name == self.OWN_IFACE:
             props = dict([(prop.name.replace('-', '_'), getattr(self, prop.name.replace('-', '_'))) for prop in self.props])
@@ -152,8 +152,8 @@ class GPropSync (WithProperties):
         else:
             raise dbus.exceptions.DBusException(
                 'com.example.UnknownInterface',
-                'The Foo object does not implement the %s interface'
-                    % interface_name)
+                'The %s object does not implement the %s interface'
+                    % (self.__class__.__name__, interface_name))
 
     @dbus.service.method(dbus_interface=dbus.PROPERTIES_IFACE,
                          in_signature='ssv')
