@@ -9,6 +9,7 @@ import managed
 import heartbeat
 import scheduler
 import doable
+import triggers
 
 """
 class Trigger (GPropSync):
@@ -107,8 +108,10 @@ class NaiveService (ScheduleManager, GPropSync):
                 % directory)
       os.chdir(directory)
       if self.openaps:
+        self.InterfacesRemoved(self.openaps.path, self.openaps.GetAll(self.openaps.OWN_IFACE))
         self.openaps.remove_from_connection( )
       self.openaps = managed.Instance(self.bus, self)
+      self.InterfacesAdded(self.openaps.path, self.openaps.GetAll(self.openaps.OWN_IFACE))
       self.homedir = directory
     def __init__ (self, loop, bus=None, path=PATH):
         self.loop = loop
@@ -122,6 +125,7 @@ class NaiveService (ScheduleManager, GPropSync):
         self.ResetHeartbeat( )
         self.scheduler = scheduler.Scheduler(self.bus, self)
         self.background = doable.Doable(self)
+        self.eventsink = triggers.EventSink(self.bus, self)
         # self.connect("notify::ini-home", self.on_change_home)
 
     def get_all_managed (self):

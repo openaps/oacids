@@ -26,12 +26,13 @@ setup(name='oacids',
     scripts = [
       'bin/openaps-dbus',
       'bin/openaps-schedule',
+      'bin/openaps-trigger',
     ],
     entry_points = {
       'openaps.importable': [
         'schedules = oacids.schedules',
         # 'aliases = oacids.schedules',
-        # 'triggers = oacids.triggers',
+        'triggers = oacids.triggers',
       ],
     },
     classifiers = [
