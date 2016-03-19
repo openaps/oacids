@@ -1,5 +1,5 @@
 
-import add, show, remove#, trigger
+import add, show, remove, emit
 
 from openaps.cli.subcommand import Subcommand
 from openaps.cli.commandmapapp import CommandMapApp
@@ -27,7 +27,7 @@ class TriggerManagement (CommandMapApp):
   title = '## Trigger management'
 
   def get_commands (self):
-    return [add, show, remove]
+    return [add, show, remove, emit]
 
 class Exported (object):
   """ FOO """
