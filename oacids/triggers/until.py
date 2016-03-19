@@ -25,7 +25,7 @@ class WaitApp (object):
     self.loop.quit( )
 
 
-  def run (self, event, timeout=None):
+  def until (self, event, timeout=None):
     self.event = event
     self.event.Do.connect(self.handle_event)
     self.event.Emit.connect(self.handle_emitted)
@@ -46,7 +46,7 @@ def configure_app (app, parser):
   parser.add_argument('--seconds', type=float)
 
 def main (args, app):
-  waiter = WaitApp( )
+  wait = WaitApp( )
   for trigger in Trigger.FromConfig(app.config):
     if args.name == trigger.name:
       with SystemBus( ) as bus:
@@ -55,6 +55,6 @@ def main (args, app):
 
         props = event.GetAll(OWN_IFACE)
         print props
-        waiter.run(event, timeout=args.seconds)
+        wait.until(event, timeout=args.seconds)
   
 
