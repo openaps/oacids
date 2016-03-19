@@ -14,7 +14,6 @@ def configure_app (app, parser):
   parser.add_argument('then', nargs=argparse.REMAINDER, default="", help='Trigger specification, like "report invoke foobar.json".')
 
 def main (args, app):
-  print args
 
   new_trigger = Trigger(name=args.name, then=' '.join(args.then))
   if not args.preview:
