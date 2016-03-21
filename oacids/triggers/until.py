@@ -15,7 +15,9 @@ import sys
 class WaitApp (object):
   def __init__ (self):
     # self.event = event
+    self.ev = Event( )
     self.loop = GLib.MainLoop( )
+    self.expired = False
 
   def handle_emitted (self, status):
     print "emitted", status, self
@@ -36,11 +38,11 @@ class WaitApp (object):
 
   def pending (self, timeout, quit):
     print "starting background, waiting for ", timeout
-    ev = Event( )
-    ev.wait(timeout)
+    self.ev.wait(timeout)
     quit( )
+    self.expired = True
     print "Failed to find event within", timeout
-    sys.exit(2)
+
 
 def configure_app (app, parser):
   parser.add_argument('--seconds', type=float)
@@ -56,5 +58,7 @@ def main (args, app):
         props = event.GetAll(OWN_IFACE)
         print props
         wait.until(event, timeout=args.seconds)
+  if wait.expired:
+    sys.exit(2)
   
 
